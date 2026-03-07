@@ -241,7 +241,7 @@ Respondé SOLO con este JSON sin markdown:
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
   const res = await axios.post(url, {
     contents: [{ parts }],
-    generationConfig: { temperature: 0.3, maxOutputTokens: 800 },
+    generationConfig: { temperature: 0.2, maxOutputTokens: 1500 },
   }, { timeout: 45000 });
 
   const text = res.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -280,15 +280,37 @@ async function getClima(ubicacion, lat, lon) {
       return { factorClima: 1.0, climaInfo: "Coordenadas inválidas", lluvia: null, temp: null };
     }
 
-    const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=precipitation_sum,temperature_2m_max&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=30`;
-    console.log(`🌐 Open-Meteo URL: ${wxUrl}`);
-    const wxRes = await axios.get(wxUrl, { timeout: 8000 });
-    const lluvia = wxRes.data.daily.precipitation_sum.reduce((a, b) => a + b, 0);
-    const temp   = wxRes.data.daily.temperature_2m_max.reduce((a, b) => a + b, 0) / wxRes.data.daily.temperature_2m_max.length;
+    // Intentar Open-Meteo primero, luego wttr.in como fallback
+    let lluvia = null, temp = null;
+
+    try {
+      const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=precipitation_sum,temperature_2m_max&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=30`;
+      console.log(`🌐 Open-Meteo: ${wxUrl}`);
+      const wxRes = await axios.get(wxUrl, { timeout: 8000 });
+      lluvia = wxRes.data.daily.precipitation_sum.reduce((a, b) => a + b, 0);
+      temp   = wxRes.data.daily.temperature_2m_max.reduce((a, b) => a + b, 0) / wxRes.data.daily.temperature_2m_max.length;
+      console.log(`✅ Open-Meteo OK: lluvia=${Math.round(lluvia)}mm temp=${Math.round(temp)}°C`);
+    } catch (e1) {
+      console.warn(`⚠️ Open-Meteo falló (${e1.message}), probando wttr.in...`);
+      try {
+        const wttrUrl = `https://wttr.in/${latitude},${longitude}?format=j1`;
+        const wttrRes = await axios.get(wttrUrl, { timeout: 8000 });
+        const weather = wttrRes.data;
+        temp = parseFloat(weather.current_condition?.[0]?.temp_C || 20);
+        lluvia = parseFloat(weather.weather?.[0]?.hourly?.reduce((a, h) => a + parseFloat(h.precipMM || 0), 0) || 10);
+        console.log(`✅ wttr.in OK: lluvia=${Math.round(lluvia)}mm temp=${Math.round(temp)}°C`);
+      } catch (e2) {
+        console.warn(`⚠️ wttr.in también falló (${e2.message}), usando estimación por zona`);
+        // Estimación por latitud para Argentina
+        temp = latitude < -35 ? 18 : latitude < -30 ? 22 : 26;
+        lluvia = 80; // promedio neutro
+      }
+    }
+
     const fLluvia = Math.min(1.3, Math.max(0.5, lluvia / 80));
     const fTemp   = temp > 30 ? 0.8 : temp < 5 ? 0.7 : 1.0;
     const resultado = { factorClima: parseFloat(((fLluvia + fTemp) / 2).toFixed(3)), climaInfo: name, lluvia: Math.round(lluvia), temp: Math.round(temp) };
-    console.log(`✅ Clima OK: ${name} lluvia=${resultado.lluvia}mm temp=${resultado.temp}°C factor=${resultado.factorClima}`);
+    console.log(`✅ Clima final: ${name} lluvia=${resultado.lluvia}mm temp=${resultado.temp}°C factor=${resultado.factorClima}`);
     return resultado;
   } catch (e) {
     console.error("Error clima:", e.message, e.response?.data || "");
