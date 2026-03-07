@@ -1,0 +1,73 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --verde: #4ade80;
+  --verde-dim: rgba(74,222,128,0.12);
+  --verde-border: rgba(74,222,128,0.18);
+  --bg: #080d08;
+  --bg2: #0d160d;
+  --bg-card: rgba(13,22,13,0.88);
+  --borde: rgba(74,222,128,0.15);
+  --texto: #e8f0e8;
+  --sub: #64748b;
+  --sub2: #475569;
+  --serif: 'DM Serif Display', Georgia, serif;
+  --mono: 'JetBrains Mono', 'Courier New', monospace;
+  --radius: 14px;
+  --radius-sm: 8px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--texto);
+  font-family: var(--serif);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(74,222,128,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74,222,128,0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  pointer-events: none;
+}
+
+#root { position: relative; z-index: 1; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+/* Inputs base */
+input, textarea, select {
+  font-family: var(--mono);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--verde-border);
+  color: var(--texto);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus, textarea:focus { border-color: var(--verde); }
+input::placeholder { color: #334155; }
+
+/* Botones base */
+button { cursor: pointer; font-family: var(--mono); transition: opacity 0.15s, transform 0.1s; }
+button:active { transform: scale(0.98); }
+
+/* Animaciones */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+.fade-up { animation: fadeUp 0.4s ease both; }
+.fade-in { animation: fadeIn 0.3s ease both; }
