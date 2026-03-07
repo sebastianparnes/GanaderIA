@@ -259,11 +259,12 @@ Respondé SOLO con este JSON sin markdown:
 // ── CLIMA ─────────────────────────────────────────────────────────────────────
 async function getClima(ubicacion, lat, lon) {
   try {
-    let latitude  = lat ? parseFloat(lat) : null;
-    let longitude = lon ? parseFloat(lon) : null;
+    let latitude  = (lat && !isNaN(parseFloat(lat)))  ? parseFloat(lat)  : null;
+    let longitude = (lon && !isNaN(parseFloat(lon))) ? parseFloat(lon) : null;
     let name = ubicacion;
 
     if (!latitude || !longitude) {
+      // Geocoding por nombre
       const geoRes = await axios.get("https://geocoding-api.open-meteo.com/v1/search", {
         params: { name: ubicacion, count: 1, language: "es", format: "json" }, timeout: 5000,
       });
@@ -271,6 +272,11 @@ async function getClima(ubicacion, lat, lon) {
       latitude  = geoRes.data.results[0].latitude;
       longitude = geoRes.data.results[0].longitude;
       name      = geoRes.data.results[0].name;
+    }
+
+    // Validación final antes de llamar a Open-Meteo
+    if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+      return { factorClima: 1.0, climaInfo: "Coordenadas inválidas", lluvia: null, temp: null };
     }
 
     const wxRes = await axios.get("https://api.open-meteo.com/v1/forecast", {
@@ -343,7 +349,7 @@ app.post("/api/analizar", upload.single("foto"), async (req, res) => {
       console.log(`📷 Foto: ${req.file.originalname} (${Math.round(req.file.size/1024)}KB)`);
     }
 
-    console.log(`🔍 Analizando ${tipoAnimal} en ${ubicacion}...`);
+    console.log(`🔍 Analizando ${tipoAnimal} en ${ubicacion} | lat=${lat} lon=${lon}`);
 
     // 1. Obtener precios reales de Liniers (scraping)
     const liniersData = await getPreciosLiniers();
