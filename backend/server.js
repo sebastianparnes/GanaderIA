@@ -65,16 +65,6 @@ const LINIERS_MAP = {
 // y también:            precios-remates-tv-exportacion-DD-MM-YYYY.html
 // Probamos varios patrones yendo hacia atrás hasta 5 días hábiles
 
-function liniersUrl(fecha, tipo = "hacienda") {
-  const d = String(fecha.getDate()).padStart(2, "0");
-  const m = String(fecha.getMonth() + 1).padStart(2, "0");
-  const y = fecha.getFullYear();
-  const slug = tipo === "hacienda"
-    ? `precios-remates-hacienda-${d}-${m}-${y}.html`
-    : `precios-remates-tv-exportacion-${d}-${m}-${y}.html`;
-  return `https://www.mercadoagroganadero.com.ar/dll/${slug}`;
-}
-
 function parseLiniersHtml(html) {
   // Extraemos las filas de la tabla con regex
   // Buscamos el patrón: CATEGORIA ... | min | max | ... | $/kg Pond.
@@ -131,70 +121,79 @@ async function getPreciosLiniers() {
     return _cacheLiniers;
   }
 
+  const URL_MAG = "https://www.mercadoagroganadero.com.ar/dll/hacienda1.dll/haciinfo000002";
   const hoy = new Date();
-  const intentos = [];
 
-  // Probar últimos 5 días hacia atrás (salteando fines de semana)
+  // Buscar último día hábil con datos (hasta 7 días atrás)
   for (let i = 0; i < 7; i++) {
     const fecha = new Date(hoy);
     fecha.setDate(hoy.getDate() - i);
     const diaSemana = fecha.getDay();
     if (diaSemana === 0 || diaSemana === 6) continue; // saltar fines de semana
-    intentos.push({ fecha, tipo: "hacienda" });
-    intentos.push({ fecha, tipo: "exportacion" });
-  }
 
-  for (const { fecha, tipo } of intentos) {
-    const url = liniersUrl(fecha, tipo);
+    const d = String(fecha.getDate()).padStart(2, "0");
+    const m = String(fecha.getMonth() + 1).padStart(2, "0");
+    const y = fecha.getFullYear();
+    const fechaStr = `${d}/${m}/${y}`;
+
     try {
-      console.log(`🔍 Scraping Liniers: ${url}`);
-      const res = await axios.get(url, {
-        timeout: 8000,
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; GanaderIA/1.0)" },
-      });
-      if (res.status !== 200) continue;
+      console.log(`🔍 Scraping MAG: ${fechaStr}`);
+      const res = await axios.post(URL_MAG,
+        new URLSearchParams({
+          ID: "",
+          CP: "",
+          FLASH: "",
+          USUARIO: "SIN IDENTIFICAR",
+          OPCIONMENU: "",
+          OPCIONSUBMENU: "",
+          txtFechaIni: fechaStr,
+          txtFechaFin: fechaStr,
+        }),
+        {
+          timeout: 10000,
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": URL_MAG,
+          },
+        }
+      );
 
       const precios = parseLiniersHtml(res.data);
       const keys = Object.keys(precios);
+      console.log(`   → ${keys.length} categorías encontradas: ${keys.join(", ")}`);
 
       if (keys.length >= 2) {
-        // Completar categorías faltantes con interpolación desde las encontradas
-        const preciosCompletos = { ...PRECIOS_FALLBACK };
-        for (const [k, v] of Object.entries(precios)) {
-          preciosCompletos[k] = v;
+        const preciosCompletos = { ...PRECIOS_FALLBACK, ...precios };
+        // Interpolar faltantes desde novillo
+        if (precios.novillo) {
+          if (!precios.novillito) preciosCompletos.novillito = Math.round(precios.novillo * 1.05);
+          if (!precios.ternero)   preciosCompletos.ternero   = Math.round(precios.novillo * 1.10);
+          if (!precios.ternera)   preciosCompletos.ternera   = Math.round(precios.novillo * 1.05);
         }
-        // Si tenemos novillo pero no novillito, novillito ≈ novillo * 1.05
-        if (precios.novillo && !precios.novillito) preciosCompletos.novillito = Math.round(precios.novillo * 1.05);
-        if (precios.novillo && !precios.ternero)   preciosCompletos.ternero   = Math.round(precios.novillo * 1.08);
-        if (precios.novillo && !precios.ternera)   preciosCompletos.ternera   = Math.round(precios.novillo * 1.03);
-
-        const d = String(fecha.getDate()).padStart(2,"0");
-        const m = String(fecha.getMonth()+1).padStart(2,"0");
-        const y = fecha.getFullYear();
 
         _cacheLiniers = {
           precios: preciosCompletos,
-          fecha: `${d}/${m}/${y}`,
-          fuente: "Mercado Agroganadero (Cañuelas)",
-          url,
+          preciosRaw: precios,
+          fecha: fechaStr,
+          fuente: "Mercado Agroganadero S.A. (scraping real)",
           scrapeadoEn: new Date().toISOString(),
         };
         _cacheFecha = ahora;
-        console.log(`✅ Liniers scrapeado: ${keys.length} categorías del ${d}/${m}/${y}`);
+        console.log(`✅ MAG scrapeado OK: ${fechaStr}`);
         return _cacheLiniers;
       }
     } catch (e) {
-      console.warn(`⚠️  Liniers ${url}: ${e.message}`);
+      console.warn(`⚠️  MAG ${fechaStr}: ${e.message}`);
     }
   }
 
-  // Fallback si no se pudo scrapear
-  console.warn("⚠️  Usando precios fallback de Liniers");
+  console.warn("⚠️  Usando precios fallback");
   _cacheLiniers = {
     precios: PRECIOS_FALLBACK,
-    fecha: "Sin datos",
+    preciosRaw: {},
+    fecha: "Sin datos reales",
     fuente: "Referencia estimada (scraping no disponible)",
-    url: null,
     scrapeadoEn: new Date().toISOString(),
   };
   _cacheFecha = ahora;
