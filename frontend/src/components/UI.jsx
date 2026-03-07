@@ -7,12 +7,11 @@ export function Notif({ notif }) {
   return (
     <div style={{
       position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)",
-      padding: "10px 24px", borderRadius: 8, zIndex: 9999,
+      padding: "12px 28px", borderRadius: 8, zIndex: 9999,
       background: notif.tipo === "error" ? "#dc2626" : "#16a34a",
-      color: "#fff", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 600,
-      boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
-      animation: "fadeIn 0.3s ease",
-      whiteSpace: "nowrap",
+      color: "#fff", fontFamily: "var(--mono)", fontSize: 14, fontWeight: 600,
+      boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+      animation: "fadeIn 0.3s ease", whiteSpace: "nowrap",
     }}>
       {notif.msg}
     </div>
@@ -28,6 +27,7 @@ export function Card({ children, style = {} }) {
       borderRadius: "var(--radius)",
       padding: "24px",
       marginBottom: 16,
+      boxShadow: "var(--shadow)",
       ...style,
     }}>
       {children}
@@ -44,11 +44,11 @@ export function ChipGrid({ options, value, onChange }) {
           key={opt.id}
           onClick={() => onChange(opt.id)}
           style={{
-            padding: "7px 14px", borderRadius: 20, fontSize: 13,
-            fontFamily: "var(--mono)", cursor: "pointer",
-            border: value === opt.id ? "1px solid var(--verde)" : "1px solid var(--verde-border)",
-            background: value === opt.id ? "var(--verde-dim)" : "rgba(74,222,128,0.02)",
-            color: value === opt.id ? "var(--verde)" : "var(--sub)",
+            padding: "8px 16px", borderRadius: 8, fontSize: 14,
+            fontFamily: "var(--mono)", cursor: "pointer", fontWeight: value === opt.id ? 600 : 400,
+            border: value === opt.id ? "2px solid var(--verde)" : "1.5px solid #cbd5e1",
+            background: value === opt.id ? "var(--verde-dim)" : "#fff",
+            color: value === opt.id ? "#166534" : "var(--sub)",
             transition: "all 0.15s",
           }}
         >
@@ -63,9 +63,9 @@ export function ChipGrid({ options, value, onChange }) {
 export function Label({ children }) {
   return (
     <span style={{
-      display: "block", fontSize: 11, color: "var(--sub)",
-      fontFamily: "var(--mono)", letterSpacing: "0.1em",
-      textTransform: "uppercase", marginBottom: 10,
+      display: "block", fontSize: 12, color: "var(--sub)", fontWeight: 600,
+      fontFamily: "var(--mono)", letterSpacing: "0.05em",
+      textTransform: "uppercase", marginBottom: 8,
     }}>
       {children}
     </span>
@@ -77,8 +77,8 @@ export function Input({ style = {}, ...props }) {
   return (
     <input
       style={{
-        width: "100%", padding: "11px 14px",
-        fontSize: 15, marginBottom: 18,
+        width: "100%", padding: "11px 14px", fontSize: 15,
+        marginBottom: 18, borderRadius: 8, display: "block",
         ...style,
       }}
       {...props}
@@ -91,12 +91,15 @@ export function BtnPrimary({ children, style = {}, ...props }) {
   return (
     <button
       style={{
-        padding: "12px 28px", borderRadius: 8,
-        background: "var(--verde)", color: "#080d08",
-        border: "none", fontSize: 14, fontWeight: 700,
-        fontFamily: "var(--mono)", letterSpacing: "0.05em",
+        padding: "11px 24px", borderRadius: 8, fontSize: 15, fontWeight: 600,
+        border: "none", background: "#16a34a", color: "#fff",
+        cursor: "pointer", letterSpacing: "0.01em",
+        boxShadow: "0 1px 3px rgba(22,163,74,0.3)",
+        transition: "all 0.15s",
         ...style,
       }}
+      onMouseEnter={e => e.currentTarget.style.background = "#15803d"}
+      onMouseLeave={e => e.currentTarget.style.background = "#16a34a"}
       {...props}
     >
       {children}
@@ -108,12 +111,13 @@ export function BtnSecondary({ children, style = {}, ...props }) {
   return (
     <button
       style={{
-        padding: "12px 24px", borderRadius: 8,
-        background: "transparent", color: "var(--sub)",
-        border: "1px solid rgba(148,163,184,0.25)",
-        fontSize: 13, fontFamily: "var(--mono)",
+        padding: "11px 24px", borderRadius: 8, fontSize: 15, fontWeight: 500,
+        border: "1.5px solid #cbd5e1", background: "#fff", color: "var(--sub)",
+        cursor: "pointer", transition: "all 0.15s",
         ...style,
       }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "#94a3b8"; e.currentTarget.style.background = "#f8fafc"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = "#cbd5e1"; e.currentTarget.style.background = "#fff"; }}
       {...props}
     >
       {children}
@@ -121,94 +125,84 @@ export function BtnSecondary({ children, style = {}, ...props }) {
   );
 }
 
-// ── SECCIÓN TÍTULO ────────────────────────────────────────────────────────────
+// ── SECTION TITLE ─────────────────────────────────────────────────────────────
 export function SectionTitle({ children }) {
   return (
-    <h3 style={{
-      fontSize: 11, fontFamily: "var(--mono)", letterSpacing: "0.12em",
-      color: "var(--sub)", marginBottom: 16, textTransform: "uppercase",
+    <div style={{
+      fontSize: 11, fontWeight: 700, color: "#16a34a",
+      letterSpacing: "0.12em", textTransform: "uppercase",
+      marginBottom: 16, paddingBottom: 10,
+      borderBottom: "2px solid #dcfce7",
     }}>
       {children}
-    </h3>
-  );
-}
-
-// ── MÉTRICA CARD ──────────────────────────────────────────────────────────────
-export function MetricaCard({ titulo, valor, sub, color }) {
-  return (
-    <div style={{
-      background: "var(--bg-card)", border: "1px solid var(--borde)",
-      borderTop: `3px solid ${color}`, borderRadius: 12,
-      padding: "18px 14px", textAlign: "center",
-    }}>
-      <div style={{ fontSize: 26, fontWeight: 900, fontFamily: "var(--mono)", color, marginBottom: 4 }}>
-        {valor}
-      </div>
-      <div style={{ fontSize: 11, color: "var(--sub)", fontFamily: "var(--mono)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-        {titulo}
-      </div>
-      {sub && <div style={{ fontSize: 10, color: "var(--sub2)", marginTop: 4, fontFamily: "var(--mono)" }}>{sub}</div>}
     </div>
   );
 }
 
-// ── RESUMEN CAPITAL ───────────────────────────────────────────────────────────
-export function ResumenCard({ titulo, valor, sub, color }) {
+// ── METRICA CARD ──────────────────────────────────────────────────────────────
+export function MetricaCard({ titulo, valor, sub, color = "#16a34a" }) {
   return (
     <div style={{
-      background: "var(--bg-card)", border: "1px solid var(--borde)",
-      borderLeft: `4px solid ${color}`, borderRadius: 12,
-      padding: "18px 20px",
+      background: "#fff", border: "1px solid var(--borde)",
+      borderRadius: 10, padding: "16px 14px", textAlign: "center",
+      boxShadow: "var(--shadow)",
+      borderTop: `3px solid ${color}`,
     }}>
-      <div style={{ fontSize: 11, color: "var(--sub)", fontFamily: "var(--mono)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>
+      <div style={{ fontSize: 11, color: "var(--sub)", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
         {titulo}
       </div>
-      <div style={{ fontSize: 24, fontWeight: 900, fontFamily: "var(--mono)", color }}>
+      <div style={{ fontSize: 22, fontWeight: 800, color, marginBottom: 4 }}>
         {valor}
       </div>
-      {sub && <div style={{ fontSize: 11, color: "var(--sub2)", marginTop: 4, fontFamily: "var(--mono)" }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 11, color: "var(--sub2)" }}>{sub}</div>}
     </div>
   );
 }
 
-// ── SPINNER ───────────────────────────────────────────────────────────────────
-export function Spinner({ size = 44 }) {
+// ── BARRA PROYECCIÓN ──────────────────────────────────────────────────────────
+export function ProyBar({ label, kg, maxKg, color }) {
+  const pct = maxKg > 0 ? Math.round((kg / maxKg) * 100) : 0;
   return (
-    <div style={{
-      width: size, height: size, borderRadius: "50%",
-      border: "3px solid rgba(74,222,128,0.2)",
-      borderTop: "3px solid var(--verde)",
-      animation: "spin 0.8s linear infinite",
-      margin: "0 auto",
-    }} />
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+        <span style={{ fontSize: 13, color: "var(--sub)", fontWeight: 500 }}>{label}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--texto)" }}>{kg} kg</span>
+      </div>
+      <div style={{ height: 10, background: "#e2e8f0", borderRadius: 5, overflow: "hidden" }}>
+        <div style={{
+          height: "100%", width: `${pct}%`, background: color,
+          borderRadius: 5, transition: "width 0.6s ease",
+        }} />
+      </div>
+    </div>
   );
 }
 
 // ── STEPPER ───────────────────────────────────────────────────────────────────
 export function Stepper({ paso }) {
-  const steps = ["Foto", "Datos", "Resultado"];
+  const pasos = [{ n: 1, label: "Foto" }, { n: 2, label: "Datos" }, { n: 3, label: "Resultado" }];
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 32 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div style={{ display: "flex", alignItems: "center", flexDirection: "column", gap: 4 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
+      {pasos.map((p, i) => (
+        <React.Fragment key={p.n}>
+          <div style={{ textAlign: "center" }}>
             <div style={{
-              width: 34, height: 34, borderRadius: "50%",
+              width: 36, height: 36, borderRadius: "50%",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 13, fontFamily: "var(--mono)", fontWeight: 700,
-              border: paso > i + 1 ? "2px solid var(--verde)" : paso === i + 1 ? "2px solid var(--verde)" : "2px solid #334155",
-              color: paso > i + 1 ? "var(--verde)" : paso === i + 1 ? "#080d08" : "var(--sub)",
-              background: paso === i + 1 ? "var(--verde)" : paso > i + 1 ? "rgba(74,222,128,0.1)" : "#0f172a",
+              fontSize: 14, fontWeight: 700, margin: "0 auto 4px",
+              background: paso > p.n ? "#16a34a" : paso === p.n ? "#16a34a" : "#e2e8f0",
+              color: paso >= p.n ? "#fff" : "#94a3b8",
+              border: paso === p.n ? "3px solid #bbf7d0" : "none",
+              boxShadow: paso === p.n ? "0 0 0 2px #16a34a" : "none",
             }}>
-              {paso > i + 1 ? "✓" : i + 1}
+              {paso > p.n ? "✓" : p.n}
             </div>
-            <span style={{ fontSize: 10, color: "var(--sub)", fontFamily: "var(--mono)" }}>{s}</span>
+            <div style={{ fontSize: 11, color: paso >= p.n ? "#16a34a" : "var(--sub2)", fontWeight: paso === p.n ? 700 : 400 }}>
+              {p.label}
+            </div>
           </div>
-          {i < 2 && (
-            <div style={{
-              width: 40, height: 2, marginBottom: 14,
-              background: paso > i + 1 ? "var(--verde)" : "#1e293b",
-            }} />
+          {i < pasos.length - 1 && (
+            <div style={{ flex: 1, height: 2, background: paso > p.n ? "#16a34a" : "#e2e8f0", margin: "0 8px 20px" }} />
           )}
         </React.Fragment>
       ))}
@@ -216,16 +210,14 @@ export function Stepper({ paso }) {
   );
 }
 
-// ── BARRA PROYECCIÓN ──────────────────────────────────────────────────────────
-export function ProyBar({ label, kg, maxKg, color }) {
-  const pct = Math.round((kg / maxKg) * 100);
+// ── SPINNER ───────────────────────────────────────────────────────────────────
+export function Spinner() {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", alignItems: "center", gap: 12, marginBottom: 14 }}>
-      <span style={{ fontSize: 13, color: "var(--sub)", fontFamily: "var(--mono)" }}>{label}</span>
-      <div style={{ height: 10, background: "#1e293b", borderRadius: 5, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 5, transition: "width 0.8s ease" }} />
-      </div>
-      <span style={{ fontSize: 13, fontFamily: "var(--mono)", textAlign: "right" }}>{kg} kg</span>
-    </div>
+    <div style={{
+      width: 44, height: 44, borderRadius: "50%", margin: "0 auto",
+      border: "4px solid #e2e8f0",
+      borderTopColor: "#16a34a",
+      animation: "spin 0.8s linear infinite",
+    }} />
   );
 }

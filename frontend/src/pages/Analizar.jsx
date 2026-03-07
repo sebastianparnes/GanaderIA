@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { analizarAnimal } from "../utils/api.js";
 import { TIPOS_ANIMAL, TIPOS_PASTURA, CONFIANZA_COLOR, TIPO_EMOJI } from "../utils/constants.js";
@@ -251,43 +251,37 @@ function Resultado({ resultado, tipoAnimal, nombreAnimal, setNombreAnimal, onGua
         <MetricaCard titulo="Peso Hoy" valor={`${ia.pesoEstimadoKg} kg`} color="#3b82f6" />
         <MetricaCard titulo="Cond. Corp." valor={`${ia.condicionCorporal}/9`} sub="estado de carnes" color="#8b5cf6" />
         <MetricaCard
-          titulo="Factor Clima"
-          valor={`${Math.round(clima.factorClima * 100)}%`}
-          sub={clima.lluvia != null ? `${clima.lluvia}mm · ${clima.temp}°C` : "Sin datos"}
-          color="#06b6d4"
+          titulo="Clima Próx. 16 días"
+          valor={clima.factorClima >= 1.05 ? "✅ Favorable" : clima.factorClima >= 0.9 ? "➡️ Normal" : "⚠️ Adverso"}
+          sub={clima.lluvia != null ? `${clima.lluvia}mm · ${clima.tempMax || clima.temp}°C máx` : "Sin datos"}
+          color={clima.factorClima >= 1.05 ? "#16a34a" : clima.factorClima >= 0.9 ? "#0891b2" : "#d97706"}
         />
       </div>
 
       <Card>
         <SectionTitle>📈 PROYECCIÓN DE ENGORDE</SectionTitle>
         <ProyBar label="Hoy"     kg={ia.pesoEstimadoKg} maxKg={maxKg} color="#94a3b8" />
-        <ProyBar label="3 meses" kg={proy.peso3m}       maxKg={maxKg} color="#3b82f6" />
-        <ProyBar label="6 meses" kg={proy.peso6m}       maxKg={maxKg} color="#4ade80" />
-        <p style={{ fontSize: 12, color: "var(--sub)", fontFamily: "var(--mono)", marginTop: 8 }}>
-          Ganancia: +{proy.peso3m - ia.pesoEstimadoKg} kg en 3m · +{proy.peso6m - ia.pesoEstimadoKg} kg en 6m · {proy.ganDiaria} kg/día
+        <ProyBar label="3 meses" kg={proy.peso3m}       maxKg={maxKg} color="#2563eb" />
+        <ProyBar label="6 meses" kg={proy.peso6m}       maxKg={maxKg} color="#16a34a" />
+        <p style={{ fontSize: 13, color: "var(--sub)", marginTop: 10 }}>
+          Ganancia proyectada: <strong>+{proy.peso3m - ia.pesoEstimadoKg} kg</strong> en 3 meses · <strong>+{proy.peso6m - ia.pesoEstimadoKg} kg</strong> en 6 meses
         </p>
+        <p style={{ fontSize: 13, color: "var(--sub)", marginTop: 4 }}>
+          Ritmo de engorde: <strong>{proy.ganDiaria} kg/día</strong> (pastura + clima próximo)
+        </p>
+        {clima.efectoDesc && (
+          <div style={{
+            marginTop: 12, padding: "10px 14px", borderRadius: 8,
+            background: clima.factorClima >= 1.05 ? "#f0fdf4" : clima.factorClima >= 0.9 ? "#f0f9ff" : "#fffbeb",
+            border: `1px solid ${clima.factorClima >= 1.05 ? "#bbf7d0" : clima.factorClima >= 0.9 ? "#bae6fd" : "#fde68a"}`,
+            fontSize: 13, color: "var(--texto)",
+          }}>
+            🌦️ <strong>Efecto climático:</strong> {clima.efectoDesc}
+          </div>
+        )}
       </Card>
 
-      <Card>
-        <SectionTitle>💰 VALOR MERCADO DE LINIERS</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
-          {[
-            { label: "HOY",     valor: proy.valorHoy, kg: ia.pesoEstimadoKg },
-            { label: "3 MESES", valor: proy.valor3m,  kg: proy.peso3m },
-            { label: "6 MESES", valor: proy.valor6m,  kg: proy.peso6m },
-          ].map((item) => (
-            <div key={item.label} style={{
-              background: "rgba(74,222,128,0.04)", border: "1px solid rgba(74,222,128,0.15)",
-              borderRadius: 10, padding: "14px 10px", textAlign: "center",
-            }}>
-              <div style={{ fontSize: 10, color: "var(--sub)", fontFamily: "var(--mono)", marginBottom: 6, letterSpacing: "0.1em" }}>{item.label}</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: "var(--verde)", fontFamily: "var(--mono)" }}>{formatPesos(item.valor)}</div>
-              <div style={{ fontSize: 10, color: "var(--sub2)", marginTop: 4, fontFamily: "var(--mono)" }}>{item.kg} kg</div>
-            </div>
-          ))}
-        </div>
-        <p style={{ fontSize: 10, color: "var(--sub2)", fontFamily: "var(--mono)", marginTop: 12 }}>* {r.precios?.nota}</p>
-      </Card>
+      <PreciosCard proy={proy} ia={ia} preciosRegionales={r.preciosRegionales} precios={r.precios} />
 
       <Card>
         <SectionTitle>🩺 EVALUACIÓN VETERINARIA IA</SectionTitle>
@@ -313,5 +307,117 @@ function Resultado({ resultado, tipoAnimal, nombreAnimal, setNombreAnimal, onGua
         </div>
       </Card>
     </div>
+  );
+}
+
+// ── PRECIOS CARD ──────────────────────────────────────────────────────────────
+function PreciosCard({ proy, ia, preciosRegionales, precios }) {
+  const [tab, setTab] = React.useState("liniers");
+  const pr = proy || {};
+  const reg = preciosRegionales || {};
+  const liniers = pr.liniers || { hoy: pr.valorHoy, mes3: pr.valor3m, mes6: pr.valor6m, precioPorKg: precios?.liniers?.precioPorKg };
+  const zona    = pr.zona    || { hoy: pr.valorHoy, mes3: pr.valor3m, mes6: pr.valor6m, precioPorKg: precios?.zona?.precioPorKg };
+
+  const tabs = [
+    { id: "liniers", label: "🏛️ Liniers", color: "#3b82f6" },
+    { id: "zona",    label: "📍 Zona",    color: "#4ade80" },
+  ];
+
+  const data = tab === "liniers" ? liniers : zona;
+  const color = tab === "liniers" ? "#3b82f6" : "#4ade80";
+
+  return (
+    <Card>
+      <SectionTitle>💰 VALOR DE MERCADO</SectionTitle>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              padding: "7px 16px", borderRadius: 20, fontSize: 12,
+              fontFamily: "var(--mono)", cursor: "pointer",
+              border: tab === t.id ? `1px solid ${t.color}` : "1px solid var(--borde)",
+              background: tab === t.id ? `${t.color}18` : "transparent",
+              color: tab === t.id ? t.color : "var(--sub)",
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Fuente */}
+      <p style={{ fontSize: 11, color: "var(--sub)", fontFamily: "var(--mono)", marginBottom: 14 }}>
+        {tab === "liniers"
+          ? `Precio Liniers: $${(data.precioPorKg||0).toLocaleString("es-AR")}/kg vivo`
+          : `Precio zona: $${(data.precioPorKg||0).toLocaleString("es-AR")}/kg · ${reg.contexto || ""}`}
+        {tab === "zona" && reg.diferencialVsLiniers !== undefined && (
+          <span style={{ color: reg.diferencialVsLiniers >= 0 ? "#4ade80" : "#f87171", marginLeft: 8 }}>
+            ({reg.diferencialVsLiniers >= 0 ? "+" : ""}{reg.diferencialVsLiniers}$/kg vs Liniers)
+          </span>
+        )}
+      </p>
+
+      {/* Valores */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
+        {[
+          { label: "HOY",     valor: data.hoy,  kg: ia.pesoEstimadoKg },
+          { label: "3 MESES", valor: data.mes3, kg: pr.peso3m },
+          { label: "6 MESES", valor: data.mes6, kg: pr.peso6m },
+        ].map(item => (
+          <div key={item.label} style={{
+            background: `${color}08`, border: `1px solid ${color}25`,
+            borderRadius: 10, padding: "14px 10px", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 10, color: "var(--sub)", fontFamily: "var(--mono)", marginBottom: 6, letterSpacing: "0.1em" }}>{item.label}</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color, fontFamily: "var(--mono)" }}>{formatPesos(item.valor)}</div>
+            <div style={{ fontSize: 10, color: "var(--sub2)", marginTop: 4, fontFamily: "var(--mono)" }}>{item.kg} kg</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Últimos remates zona */}
+      {tab === "zona" && reg.ultimosRemates?.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, color: "var(--sub)", fontFamily: "var(--mono)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>
+            Últimos remates de referencia
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {reg.ultimosRemates.map((r, i) => (
+              <div key={i} style={{
+                display: "grid", gridTemplateColumns: "1fr auto",
+                padding: "10px 14px", borderRadius: 8,
+                background: "rgba(74,222,128,0.03)", border: "1px solid rgba(74,222,128,0.1)",
+                alignItems: "center",
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, color: "var(--texto)", fontFamily: "var(--mono)" }}>
+                    {r.lugar}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--sub)", fontFamily: "var(--mono)" }}>
+                    {r.fecha} · {r.categoria} · ~{r.pesoPromedio}kg
+                  </div>
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 900, color: "#4ade80", fontFamily: "var(--mono)" }}>
+                  ${(r.precioPorKg||0).toLocaleString("es-AR")}/kg
+                </div>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 10, color: "var(--sub2)", fontFamily: "var(--mono)", marginTop: 10 }}>
+            * Estimación IA basada en mercado regional. Verificar en clicrural.com.ar
+          </p>
+        </div>
+      )}
+
+      {tab === "liniers" && (
+        <p style={{ fontSize: 10, color: "var(--sub2)", fontFamily: "var(--mono)", marginTop: 4 }}>
+          * {precios?.nota}
+        </p>
+      )}
+    </Card>
   );
 }

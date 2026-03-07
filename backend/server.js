@@ -209,8 +209,18 @@ async function analizarConIA(tipoAnimal, edadMeses, pastura, ubicacion, base64Im
   const pasturaLabel = PASTURA_LABELS[pastura]  || pastura;
   const baseKg       = BASE_KG[tipoAnimal]      || 250;
 
-  const prompt = `Respondé SOLO con JSON, sin texto adicional.
-Animal: ${tipoLabel}, ${edadMeses} meses, ${pasturaLabel}, ${ubicacion}. Peso base: ${baseKg}kg. Precio Liniers: $${precioLiniers}/kg.
+  const prompt = `Sos un veterinario ganadero argentino experto. Respondé SOLO con JSON válido, sin texto adicional ni markdown.
+
+${base64Image ? `Mirá la foto y estimá el peso real del animal basándote en su conformación corporal, tamaño, desarrollo muscular y estado de carnes.` : `Estimá el peso según la categoría, edad y alimentación.`}
+
+Categoría: ${tipoLabel}
+Edad: ${edadMeses} meses
+Alimentación: ${pasturaLabel}
+Zona: ${ubicacion}
+Precio Liniers referencia: $${precioLiniers}/kg
+Diferencial zona (Entre Ríos/NEA tienen descuento por flete vs Liniers): estimá entre -200 y -600
+
+Completá este JSON con valores reales (NO uses valores de ejemplo):
 {"pesoEstimadoKg":0,"condicionCorporal":0,"confianza":"","observaciones":"","recomendaciones":"","diferencialZona":0,"contextoZona":""}`;
 
   const parts = [{ text: prompt }];
@@ -271,15 +281,22 @@ async function getClima(ubicacion, lat, lon) {
     }
 
     // Intentar Open-Meteo primero, luego wttr.in como fallback
-    let lluvia = null, temp = null;
+    let lluvia = null, temp = null, wxExtras = {};
 
     try {
-      const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=precipitation_sum,temperature_2m_max&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=30`;
+      const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=precipitation_sum,temperature_2m_max,temperature_2m_min&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=16`;
       console.log(`🌐 Open-Meteo: ${wxUrl}`);
       const wxRes = await axios.get(wxUrl, { timeout: 8000 });
-      lluvia = wxRes.data.daily.precipitation_sum.reduce((a, b) => a + b, 0);
-      temp   = wxRes.data.daily.temperature_2m_max.reduce((a, b) => a + b, 0) / wxRes.data.daily.temperature_2m_max.length;
-      console.log(`✅ Open-Meteo OK: lluvia=${Math.round(lluvia)}mm temp=${Math.round(temp)}°C`);
+      const daily = wxRes.data.daily;
+      // Promedios del pronóstico futuro (próximos 16 días)
+      lluvia = daily.precipitation_sum.reduce((a, b) => a + b, 0); // lluvia total proyectada
+      temp   = daily.temperature_2m_max.reduce((a, b) => a + b, 0) / daily.temperature_2m_max.length;
+      const tempMin = daily.temperature_2m_min.reduce((a, b) => a + b, 0) / daily.temperature_2m_min.length;
+      const tempMedia = (temp + tempMin) / 2;
+      // Guardar datos extras para el response
+      wxExtras = { tempMax: Math.round(temp), tempMin: Math.round(tempMin), tempMedia: Math.round(tempMedia), diasPronostico: daily.time.length };
+      temp = tempMedia; // usar temperatura media para el cálculo
+      console.log(`✅ Open-Meteo OK: lluvia=${Math.round(lluvia)}mm tempMedia=${Math.round(temp)}°C (próximos ${daily.time.length} días)`);
     } catch (e1) {
       console.warn(`⚠️ Open-Meteo falló (${e1.message}), probando wttr.in...`);
       try {
@@ -297,10 +314,18 @@ async function getClima(ubicacion, lat, lon) {
       }
     }
 
-    const fLluvia = Math.min(1.3, Math.max(0.5, lluvia / 80));
-    const fTemp   = temp > 30 ? 0.8 : temp < 5 ? 0.7 : 1.0;
-    const resultado = { factorClima: parseFloat(((fLluvia + fTemp) / 2).toFixed(3)), climaInfo: name, lluvia: Math.round(lluvia), temp: Math.round(temp) };
-    console.log(`✅ Clima final: ${name} lluvia=${resultado.lluvia}mm temp=${resultado.temp}°C factor=${resultado.factorClima}`);
+    const fLluvia = Math.min(1.3, Math.max(0.5, lluvia / 60)); // 60mm en 16 días = óptimo
+    const fTemp   = temp > 28 ? 0.85 : temp < 8 ? 0.75 : 1.0;
+    const factorClima = parseFloat(((fLluvia + fTemp) / 2).toFixed(3));
+    // Descripción del efecto climático futuro
+    let efectoDesc = "";
+    if (factorClima >= 1.1) efectoDesc = "Clima favorable: lluvias y temperaturas ideales acelerarán el engorde";
+    else if (factorClima >= 0.95) efectoDesc = "Clima normal: no se esperan efectos significativos en el engorde";
+    else if (factorClima >= 0.8) efectoDesc = "Clima desfavorable: calor o falta de lluvias reducirán levemente el engorde";
+    else efectoDesc = "Clima muy desfavorable: condiciones adversas afectarán significativamente el engorde";
+
+    const resultado = { factorClima, climaInfo: name, lluvia: Math.round(lluvia), temp: Math.round(temp), efectoDesc, ...wxExtras };
+    console.log(`✅ Clima final: factor=${factorClima} (${efectoDesc})`);
     return resultado;
   } catch (e) {
     console.error("Error clima:", e.message, e.response?.data || "");
