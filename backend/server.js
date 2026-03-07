@@ -61,7 +61,7 @@ Respondé SOLO con JSON válido sin markdown ni texto extra:
   }
 
   // URL corregida: v1 en lugar de v1beta, y modelo actualizado
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${GEMINI_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
 
   console.log("Llamando Gemini:", url.replace(GEMINI_KEY, "***"));
 
