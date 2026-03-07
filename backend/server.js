@@ -61,7 +61,7 @@ Respondé SOLO con JSON válido sin markdown ni texto extra:
   }
 
   // URL corregida: v1 en lugar de v1beta, y modelo actualizado
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
 
   console.log("Llamando Gemini:", url.replace(GEMINI_KEY, "***"));
 
@@ -166,6 +166,6 @@ if (process.env.NODE_ENV === "production") {
 }
 
 app.listen(PORT, () => {
-  console.log(`🐄 GanaderIA en puerto ${PORT} | IA: Gemini 1.5 Flash`);
+  console.log(`🐄 GanaderIA en puerto ${PORT} | IA: Gemini 2.0 Flash`);
   console.log(`   GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? "✅ configurada" : "❌ FALTA"}`);
 });
