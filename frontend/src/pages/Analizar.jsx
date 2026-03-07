@@ -80,8 +80,8 @@ export default function Analizar({ onGuardar, notif, campoPrincipal }) {
         <div style={{
           display: "flex", alignItems: "center", gap: 10, marginBottom: 20,
           padding: "10px 16px", borderRadius: 10,
-          background: "rgba(74,222,128,0.06)", border: "1px solid var(--borde)",
-          fontSize: 12, fontFamily: "var(--mono)", color: "var(--sub)",
+          background: "#f0fdf4", border: "1px solid var(--borde)",
+          fontSize: 13, color: "#374151",
         }}>
           <span style={{ fontSize: 18 }}>🌾</span>
           <span>
@@ -121,14 +121,14 @@ export default function Analizar({ onGuardar, notif, campoPrincipal }) {
       {/* PASO 1 */}
       {paso === 1 && (
         <Card>
-          <h2 style={{ fontSize: 22, marginBottom: 6, color: "#f0fdf0" }}>📷 Fotografiá el animal</h2>
+          <h2 style={{ fontSize: "clamp(18px,4vw,22px)", marginBottom: 6, color: "#0f172a" }}>📷 Fotografiá el animal</h2>
           <p style={{ fontSize: 12, color: "var(--sub)", fontFamily: "var(--mono)", marginBottom: 24 }}>
             Foto clara de cuerpo entero, de costado si es posible
           </p>
           <div
             onClick={() => fileRef.current?.click()}
             style={{
-              border: "2px dashed rgba(74,222,128,0.25)", borderRadius: 12,
+              border: "2px dashed #86efac", borderRadius: 12,
               padding: "52px 24px", textAlign: "center", cursor: "pointer", marginBottom: 16,
             }}
             onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--verde)"}
@@ -153,7 +153,7 @@ export default function Analizar({ onGuardar, notif, campoPrincipal }) {
           {fotoURL && (
             <img src={fotoURL} alt="Animal" style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 10, marginBottom: 24 }} />
           )}
-          <h2 style={{ fontSize: 22, marginBottom: 6, color: "#f0fdf0" }}>📋 Datos del animal</h2>
+          <h2 style={{ fontSize: "clamp(18px,4vw,22px)", marginBottom: 6, color: "#0f172a" }}>📋 Datos del animal</h2>
 
           <Label>Tipo de animal</Label>
           <ChipGrid options={TIPOS_ANIMAL} value={tipoAnimal} onChange={setTipoAnimal} />
@@ -232,7 +232,7 @@ function Resultado({ resultado, tipoAnimal, nombreAnimal, setNombreAnimal, onGua
         <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
           {r.fotoURL && <img src={r.fotoURL} alt="Animal" style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 10, flexShrink: 0 }} />}
           <div>
-            <h2 style={{ fontSize: 26, marginBottom: 4, color: "#f0fdf0" }}>{tipoInfo.icon} {tipoInfo.label}</h2>
+            <h2 style={{ fontSize: 26, marginBottom: 4, color: "#0f172a" }}>{tipoInfo.icon} {tipoInfo.label}</h2>
             <p style={{ fontSize: 12, color: "var(--sub)", fontFamily: "var(--mono)", marginBottom: 10 }}>
               {r.animal?.edadMeses} meses · {r.animal?.pastura?.replace(/_/g," ")} · {r.animal?.ubicacion}
             </p>
@@ -247,7 +247,7 @@ function Resultado({ resultado, tipoAnimal, nombreAnimal, setNombreAnimal, onGua
         </div>
       </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginBottom: 16 }}>
         <MetricaCard titulo="Peso Hoy" valor={`${ia.pesoEstimadoKg} kg`} color="#3b82f6" />
         <MetricaCard titulo="Cond. Corp." valor={`${ia.condicionCorporal}/9`} sub="estado de carnes" color="#8b5cf6" />
         <MetricaCard
@@ -320,7 +320,7 @@ function PreciosCard({ proy, ia, preciosRegionales, precios }) {
 
   const tabs = [
     { id: "liniers", label: "🏛️ Liniers", color: "#3b82f6" },
-    { id: "zona",    label: "📍 Zona",    color: "#4ade80" },
+    { id: "zona",    label: "📍 Zona",    color: "#16a34a" },
   ];
 
   const data = tab === "liniers" ? liniers : zona;
@@ -362,7 +362,7 @@ function PreciosCard({ proy, ia, preciosRegionales, precios }) {
       </p>
 
       {/* Valores */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 10, marginBottom: 16 }}>
         {[
           { label: "HOY",     valor: data.hoy,  kg: ia.pesoEstimadoKg },
           { label: "3 MESES", valor: data.mes3, kg: pr.peso3m },
@@ -390,7 +390,7 @@ function PreciosCard({ proy, ia, preciosRegionales, precios }) {
               <div key={i} style={{
                 display: "grid", gridTemplateColumns: "1fr auto",
                 padding: "10px 14px", borderRadius: 8,
-                background: "rgba(74,222,128,0.03)", border: "1px solid rgba(74,222,128,0.1)",
+                background: "#f8fafc", border: "1px solid #dcfce7",
                 alignItems: "center",
               }}>
                 <div>
@@ -401,7 +401,7 @@ function PreciosCard({ proy, ia, preciosRegionales, precios }) {
                     {r.fecha} · {r.categoria} · ~{r.pesoPromedio}kg
                   </div>
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 900, color: "#4ade80", fontFamily: "var(--mono)" }}>
+                <div style={{ fontSize: 15, fontWeight: 900, color: "#16a34a", fontFamily: "var(--mono)" }}>
                   ${(r.precioPorKg||0).toLocaleString("es-AR")}/kg
                 </div>
               </div>

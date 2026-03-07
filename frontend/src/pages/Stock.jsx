@@ -33,7 +33,7 @@ export default function Stock({ stock, onEliminar, totales }) {
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 20px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-        <h2 style={{ fontSize: 26, color: "#f0fdf0" }}>📊 Mi Hacienda</h2>
+        <h2 style={{ fontSize: "clamp(20px,4vw,26px)", color: "#0f172a" }}>📊 Mi Hacienda</h2>
         <BtnPrimary onClick={() => nav("/analizar")}>+ Agregar Animal</BtnPrimary>
       </div>
 
@@ -68,12 +68,12 @@ export default function Stock({ stock, onEliminar, totales }) {
               <XAxis dataKey="name" tick={{ fontSize: 10, fontFamily: "var(--mono)", fill: "#64748b" }} />
               <YAxis tick={{ fontSize: 10, fontFamily: "var(--mono)", fill: "#64748b" }} />
               <Tooltip
-                contentStyle={{ background: "#0d160d", border: "1px solid #1e3a1e", fontFamily: "var(--mono)", fontSize: 12 }}
+                contentStyle={{ background: "#ffffff", border: "1px solid #1e3a1e", fontFamily: "var(--mono)", fontSize: 12 }}
                 formatter={(v) => [`$${v}k`, ""]}
               />
               <Bar dataKey="hoy"  fill="#3b82f6" radius={[4,4,0,0]} />
               <Bar dataKey="3m"   fill="#8b5cf6" radius={[4,4,0,0]} />
-              <Bar dataKey="6m"   fill="#4ade80" radius={[4,4,0,0]} />
+              <Bar dataKey="6m"   fill="#16a34a" radius={[4,4,0,0]} />
             </BarChart>
           </ResponsiveContainer>
           <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 8 }}>
@@ -97,7 +97,7 @@ export default function Stock({ stock, onEliminar, totales }) {
               <div onClick={() => setExpandido(isOpen ? null : a.id)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
                   <div>
-                    <div style={{ fontSize: 17, fontWeight: 700, color: "#f0fdf0", marginBottom: 3 }}>
+                    <div style={{ fontSize: "clamp(15px,3vw,17px)", fontWeight: 700, color: "#1e293b", marginBottom: 3 }}>
                       {TIPO_EMOJI[a.animal?.tipo] || "🐄"} {a.nombre}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--sub)", fontFamily: "var(--mono)" }}>
@@ -105,7 +105,7 @@ export default function Stock({ stock, onEliminar, totales }) {
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: "#4ade80", fontFamily: "var(--mono)" }}>
+                    <div style={{ fontSize: "clamp(17px,3.5vw,20px)", fontWeight: 900, color: "#16a34a" }}>
                       {formatPesos(proy.valorHoy)}
                     </div>
                     <div style={{ fontSize: 10, color: "var(--sub)", fontFamily: "var(--mono)" }}>valor hoy</div>
@@ -113,11 +113,11 @@ export default function Stock({ stock, onEliminar, totales }) {
                 </div>
 
                 {/* Proyecciones inline */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(90px,1fr))", gap: 8, marginTop: 14 }}>
                   {[
                     { label: "Hoy",     val: proy.valorHoy, kg: ia.pesoEstimadoKg, color: "#3b82f6" },
                     { label: "3 meses", val: proy.valor3m,  kg: proy.peso3m,        color: "#8b5cf6" },
-                    { label: "6 meses", val: proy.valor6m,  kg: proy.peso6m,        color: "#4ade80" },
+                    { label: "6 meses", val: proy.valor6m,  kg: proy.peso6m,        color: "#16a34a" },
                   ].map((item) => (
                     <div key={item.label} style={{ textAlign: "center" }}>
                       <div style={{ fontSize: 10, color: "var(--sub)", fontFamily: "var(--mono)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.08em" }}>{item.label}</div>
