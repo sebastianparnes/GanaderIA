@@ -227,10 +227,22 @@ Respondé con exactamente este formato JSON (completá los valores reales):
     generationConfig: { temperature: 0.2, maxOutputTokens: 1500 },
   }, { timeout: 45000 });
 
-  const text = res.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  console.log("Gemini OK:", text.substring(0, 120));
+  const rawText = res.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  // Gemini a veces envuelve el JSON en ```json ``` aunque se le pida que no
+  const text = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  console.log(`Gemini OK: [${text.length} chars]:`, text.substring(0, 300));
   const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (jsonMatch) return JSON.parse(jsonMatch[0]);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch(e) {
+      // Intentar reparar JSON truncado cerrando llaves faltantes
+      let fixed = jsonMatch[0];
+      const open = (fixed.match(/\{/g)||[]).length - (fixed.match(/\}/g)||[]).length;
+      fixed += "}".repeat(Math.max(0, open));
+      try { return JSON.parse(fixed); } catch(e2) { console.warn("JSON irreparable:", e2.message); }
+    }
+  }
 
   return {
     pesoEstimadoKg: baseKg, condicionCorporal: 5, confianza: "baja",
