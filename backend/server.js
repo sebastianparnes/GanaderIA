@@ -209,31 +209,14 @@ async function analizarConIA(tipoAnimal, edadMeses, pastura, ubicacion, base64Im
   const pasturaLabel = PASTURA_LABELS[pastura]  || pastura;
   const baseKg       = BASE_KG[tipoAnimal]      || 250;
 
-  const prompt = `Sos un veterinario experto en ganadería bovina argentina.
+  const prompt = `Sos un veterinario ganadero argentino. Analizá este animal y respondé ÚNICAMENTE con un objeto JSON válido, sin explicaciones ni markdown.
 
-TAREA 1 — ANÁLISIS DEL ANIMAL:
-${base64Image ? "Analizá la foto de un" : "Estimá datos de un"} ${tipoLabel} de ${edadMeses} meses.
-Alimentación: ${pasturaLabel}. Zona: ${ubicacion}.
-Peso base esperado: ~${baseKg}kg.
-${base64Image ? "Basate en la conformación corporal y estado de carnes visible." : "Usá promedios para la categoría y edad."}
+Datos: ${tipoLabel} de ${edadMeses} meses, alimentado con ${pasturaLabel}, ubicado en ${ubicacion}.
+${base64Image ? "Estimá el peso real mirando la foto." : `El peso promedio para esta categoría es ${baseKg}kg, ajustá según edad.`}
+Precio Liniers actual: $${precioLiniers}/kg. El diferencial regional para ${ubicacion} vs Liniers es negativo (flete, distancia).
 
-TAREA 2 — DIFERENCIAL DE PRECIO REGIONAL:
-El precio de referencia de Liniers para ${tipoLabel} es $${precioLiniers}/kg vivo.
-Estimá el diferencial de precio en la zona de ${ubicacion} vs Liniers.
-Considerá: distancia a mercados, demanda regional, razas típicas de la zona, logística.
-El diferencial puede ser positivo (la zona paga más) o negativo (paga menos).
-Típicamente Entre Ríos y Corrientes tienen un descuento de $200-$500/kg por flete.
-
-Respondé SOLO con este JSON sin markdown:
-{
-  "pesoEstimadoKg": número,
-  "condicionCorporal": número_1_al_9,
-  "confianza": "alta"|"media"|"baja",
-  "observaciones": "texto corto",
-  "recomendaciones": "texto corto",
-  "diferencialZona": número_puede_ser_negativo,
-  "contextoZona": "texto corto explicando el diferencial"
-}`;
+Respondé con exactamente este formato JSON (completá los valores reales):
+{"pesoEstimadoKg": NUMERO, "condicionCorporal": NUMERO_1_A_9, "confianza": "TEXTO", "observaciones": "TEXTO", "recomendaciones": "TEXTO", "diferencialZona": NUMERO_NEGATIVO, "contextoZona": "TEXTO"}`;
 
   const parts = [{ text: prompt }];
   if (base64Image) parts.unshift({ inline_data: { mime_type: mediaType || "image/jpeg", data: base64Image } });
@@ -380,13 +363,26 @@ app.post("/api/analizar", upload.single("foto"), async (req, res) => {
     const precioLiniers = liniersData.precios[tipoAnimal] || PRECIOS_FALLBACK[tipoAnimal] || 4500;
 
     // 2. Clima + IA en paralelo
-    const [climaData, iaResult] = await Promise.all([
+    const [climaData, iaResultRaw] = await Promise.all([
       getClima(ubicacion, lat, lon),
       analizarConIA(tipoAnimal, parseInt(edadMeses), pastura, ubicacion, base64Image, mediaType, precioLiniers),
     ]);
 
-    // 3. Precio zona = Liniers + diferencial estimado por IA
-    const diferencial  = iaResult.diferencialZona || -300;
+    // 3. Asegurar que iaResult tenga todos los campos necesarios
+    const baseKgFallback = BASE_KG[tipoAnimal] || 250;
+    const iaResult = {
+      pesoEstimadoKg:    iaResultRaw?.pesoEstimadoKg    || baseKgFallback,
+      condicionCorporal: iaResultRaw?.condicionCorporal || 5,
+      confianza:         iaResultRaw?.confianza         || "baja",
+      observaciones:     iaResultRaw?.observaciones     || "Estimación por categoría y edad.",
+      recomendaciones:   iaResultRaw?.recomendaciones   || "Subí una foto clara para mayor precisión.",
+      diferencialZona:   iaResultRaw?.diferencialZona   ?? -300,
+      contextoZona:      iaResultRaw?.contextoZona      || "Descuento estimado por flete.",
+    };
+    console.log(`📊 IA result: peso=${iaResult.pesoEstimadoKg}kg confianza=${iaResult.confianza} diferencial=${iaResult.diferencialZona}`);
+
+    // 4. Precio zona = Liniers + diferencial estimado por IA
+    const diferencial  = iaResult.diferencialZona;
     const precioZona   = Math.max(1000, precioLiniers + diferencial);
 
     // 4. Proyecciones con ambos precios
