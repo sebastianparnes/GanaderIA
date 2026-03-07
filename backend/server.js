@@ -280,17 +280,18 @@ async function getClima(ubicacion, lat, lon) {
       return { factorClima: 1.0, climaInfo: "Coordenadas inválidas", lluvia: null, temp: null };
     }
 
-    const wxRes = await axios.get("https://api.open-meteo.com/v1/forecast", {
-      params: { latitude, longitude, daily: "precipitation_sum,temperature_2m_max", timezone: "auto", forecast_days: 30 },
-      timeout: 5000,
-    });
+    const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=precipitation_sum,temperature_2m_max&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=30`;
+    console.log(`🌐 Open-Meteo URL: ${wxUrl}`);
+    const wxRes = await axios.get(wxUrl, { timeout: 8000 });
     const lluvia = wxRes.data.daily.precipitation_sum.reduce((a, b) => a + b, 0);
     const temp   = wxRes.data.daily.temperature_2m_max.reduce((a, b) => a + b, 0) / wxRes.data.daily.temperature_2m_max.length;
     const fLluvia = Math.min(1.3, Math.max(0.5, lluvia / 80));
     const fTemp   = temp > 30 ? 0.8 : temp < 5 ? 0.7 : 1.0;
-    return { factorClima: parseFloat(((fLluvia + fTemp) / 2).toFixed(3)), climaInfo: name, lluvia: Math.round(lluvia), temp: Math.round(temp) };
+    const resultado = { factorClima: parseFloat(((fLluvia + fTemp) / 2).toFixed(3)), climaInfo: name, lluvia: Math.round(lluvia), temp: Math.round(temp) };
+    console.log(`✅ Clima OK: ${name} lluvia=${resultado.lluvia}mm temp=${resultado.temp}°C factor=${resultado.factorClima}`);
+    return resultado;
   } catch (e) {
-    console.error("Error clima:", e.message);
+    console.error("Error clima:", e.message, e.response?.data || "");
     return { factorClima: 1.0, climaInfo: "Sin datos climáticos", lluvia: null, temp: null };
   }
 }
