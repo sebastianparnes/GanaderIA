@@ -16,6 +16,8 @@ export async function analizarAnimal(datos, fotoFile = null) {
   formData.append("edadMeses", datos.edadMeses);
   formData.append("pastura", datos.pastura);
   formData.append("ubicacion", datos.ubicacion);
+  if (datos.lat) formData.append("lat", datos.lat);
+  if (datos.lon) formData.append("lon", datos.lon);
   if (fotoFile) {
     formData.append("foto", fotoFile);
   }

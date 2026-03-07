@@ -79,13 +79,21 @@ Respondé SOLO con JSON válido sin markdown ni texto extra:
   return { pesoEstimadoKg: baseKg, condicionCorporal: 5, confianza: "baja", observaciones: "Estimación automática.", recomendaciones: "Tomá foto de cuerpo entero para mayor precisión." };
 }
 
-async function getClima(ubicacion) {
+async function getClima(ubicacion, lat, lon) {
   try {
-    const geoRes = await axios.get("https://geocoding-api.open-meteo.com/v1/search", {
-      params: { name: ubicacion, count: 1, language: "es", format: "json" }, timeout: 5000,
-    });
-    if (!geoRes.data.results?.length) return { factorClima: 1.0, climaInfo: "Ubicación no encontrada", lluvia: null, temp: null };
-    const { latitude, longitude, name } = geoRes.data.results[0];
+    let latitude = lat ? parseFloat(lat) : null;
+    let longitude = lon ? parseFloat(lon) : null;
+    let name = ubicacion;
+
+    if (!latitude || !longitude) {
+      const geoRes = await axios.get("https://geocoding-api.open-meteo.com/v1/search", {
+        params: { name: ubicacion, count: 1, language: "es", format: "json" }, timeout: 5000,
+      });
+      if (!geoRes.data.results?.length) return { factorClima: 1.0, climaInfo: "Ubicación no encontrada", lluvia: null, temp: null };
+      latitude = geoRes.data.results[0].latitude;
+      longitude = geoRes.data.results[0].longitude;
+      name = geoRes.data.results[0].name;
+    }
     const wxRes = await axios.get("https://api.open-meteo.com/v1/forecast", {
       params: { latitude, longitude, daily: "precipitation_sum,temperature_2m_max", timezone: "America/Argentina/Buenos_Aires", forecast_days: 30 },
       timeout: 5000,
@@ -134,8 +142,9 @@ app.post("/api/analizar", upload.single("foto"), async (req, res) => {
       console.log(`Foto recibida: ${req.file.originalname} (${Math.round(req.file.size/1024)}KB)`);
     }
 
+    const { lat, lon } = req.body;
     const [climaData, iaResult] = await Promise.all([
-      getClima(ubicacion),
+      getClima(ubicacion, lat, lon),
       estimarPesoConGemini(tipoAnimal, parseInt(edadMeses), pastura, ubicacion, base64Image, mediaType),
     ]);
 

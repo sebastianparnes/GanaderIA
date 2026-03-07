@@ -8,15 +8,16 @@ import {
   SectionTitle, MetricaCard, ProyBar, Stepper, Spinner,
 } from "../components/UI.jsx";
 
-export default function Analizar({ onGuardar, notif }) {
+export default function Analizar({ onGuardar, notif, campoPrincipal }) {
   const nav = useNavigate();
   const [paso, setPaso] = useState(1);
   const [fotoFile, setFotoFile] = useState(null);
   const [fotoURL, setFotoURL] = useState(null);
   const [tipoAnimal, setTipoAnimal] = useState("");
   const [edadMeses, setEdadMeses] = useState("");
-  const [pastura, setPastura] = useState("");
-  const [ubicacion, setUbicacion] = useState("");
+  // Usar datos del campo si existen
+  const [pastura, setPastura] = useState(campoPrincipal?.pastura || "");
+  const [ubicacion, setUbicacion] = useState(campoPrincipal?.direccion || "");
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [nombreAnimal, setNombreAnimal] = useState("");
@@ -30,15 +31,13 @@ export default function Analizar({ onGuardar, notif }) {
     setPaso(2);
   }
 
-  function sinFoto() {
-    setFotoFile(null);
-    setFotoURL(null);
-    setPaso(2);
-  }
+  function sinFoto() { setFotoFile(null); setFotoURL(null); setPaso(2); }
 
   function reset() {
     setPaso(1); setFotoFile(null); setFotoURL(null);
-    setTipoAnimal(""); setEdadMeses(""); setPastura(""); setUbicacion("");
+    setTipoAnimal(""); setEdadMeses("");
+    setPastura(campoPrincipal?.pastura || "");
+    setUbicacion(campoPrincipal?.direccion || "");
     setResultado(null); setNombreAnimal("");
   }
 
@@ -49,7 +48,12 @@ export default function Analizar({ onGuardar, notif }) {
     setLoading(true);
     setPaso(3);
     try {
-      const data = await analizarAnimal({ tipoAnimal, edadMeses, pastura, ubicacion }, fotoFile);
+      // Si tenemos coordenadas del campo, pasarlas al backend
+      const datos = {
+        tipoAnimal, edadMeses, pastura, ubicacion,
+        ...(campoPrincipal?.lat ? { lat: campoPrincipal.lat, lon: campoPrincipal.lon } : {}),
+      };
+      const data = await analizarAnimal(datos, fotoFile);
       setResultado({ ...data, fotoURL });
     } catch (err) {
       notif("Error: " + (err.response?.data?.error || err.message), "error");
@@ -63,16 +67,58 @@ export default function Analizar({ onGuardar, notif }) {
     if (!resultado) return;
     const tipoInfo = TIPOS_ANIMAL.find((t) => t.id === tipoAnimal);
     const nombre = nombreAnimal.trim() || `${tipoInfo?.label || tipoAnimal} #${Date.now() % 1000}`;
-    onGuardar({ nombre, fotoURL, ...resultado });
+    onGuardar({ nombre, fotoURL, campo: campoPrincipal?.nombre, ...resultado });
     notif(`${nombre} guardado en stock ✓`);
     nav("/stock");
   }
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", padding: "32px 20px" }}>
+
+      {/* Banner campo configurado */}
+      {campoPrincipal && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, marginBottom: 20,
+          padding: "10px 16px", borderRadius: 10,
+          background: "rgba(74,222,128,0.06)", border: "1px solid var(--borde)",
+          fontSize: 12, fontFamily: "var(--mono)", color: "var(--sub)",
+        }}>
+          <span style={{ fontSize: 18 }}>🌾</span>
+          <span>
+            Campo: <strong style={{ color: "var(--verde)" }}>{campoPrincipal.nombre}</strong>
+            {" · "}{campoPrincipal.direccion}
+            {" · "}{TIPOS_PASTURA.find(p => p.id === campoPrincipal.pastura)?.label}
+          </span>
+          <button
+            onClick={() => nav("/campo")}
+            style={{ marginLeft: "auto", fontSize: 11, fontFamily: "var(--mono)", background: "transparent", border: "none", color: "var(--sub)", cursor: "pointer", textDecoration: "underline" }}
+          >
+            Cambiar
+          </button>
+        </div>
+      )}
+
+      {!campoPrincipal && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, marginBottom: 20,
+          padding: "10px 16px", borderRadius: 10,
+          background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.25)",
+          fontSize: 12, fontFamily: "var(--mono)", color: "#d97706",
+        }}>
+          <span>⚠️</span>
+          <span>Configurá tu campo para mejores resultados con el clima</span>
+          <button
+            onClick={() => nav("/campo")}
+            style={{ marginLeft: "auto", fontSize: 11, fontFamily: "var(--mono)", background: "transparent", border: "none", color: "#d97706", cursor: "pointer", textDecoration: "underline" }}
+          >
+            Configurar →
+          </button>
+        </div>
+      )}
+
       <Stepper paso={paso} />
 
-      {/* ── PASO 1 ── */}
+      {/* PASO 1 */}
       {paso === 1 && (
         <Card>
           <h2 style={{ fontSize: 22, marginBottom: 6, color: "#f0fdf0" }}>📷 Fotografiá el animal</h2>
@@ -84,7 +130,6 @@ export default function Analizar({ onGuardar, notif }) {
             style={{
               border: "2px dashed rgba(74,222,128,0.25)", borderRadius: 12,
               padding: "52px 24px", textAlign: "center", cursor: "pointer", marginBottom: 16,
-              transition: "all 0.2s",
             }}
             onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--verde)"}
             onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(74,222,128,0.25)"}
@@ -102,7 +147,7 @@ export default function Analizar({ onGuardar, notif }) {
         </Card>
       )}
 
-      {/* ── PASO 2 ── */}
+      {/* PASO 2 */}
       {paso === 2 && (
         <Card>
           {fotoURL && (
@@ -116,11 +161,21 @@ export default function Analizar({ onGuardar, notif }) {
           <Label>Edad aproximada (meses)</Label>
           <Input type="number" min="1" max="120" placeholder="Ej: 18" value={edadMeses} onChange={(e) => setEdadMeses(e.target.value)} />
 
-          <Label>Tipo de pastura / alimentación</Label>
-          <ChipGrid options={TIPOS_PASTURA} value={pastura} onChange={setPastura} />
+          {/* Pastura solo si no hay campo configurado */}
+          {!campoPrincipal && (
+            <>
+              <Label>Tipo de pastura</Label>
+              <ChipGrid options={TIPOS_PASTURA} value={pastura} onChange={setPastura} />
+            </>
+          )}
 
-          <Label>Ubicación del campo</Label>
-          <Input type="text" placeholder="Ej: Villaguay, Entre Ríos" value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} />
+          {/* Ubicación solo si no hay campo configurado */}
+          {!campoPrincipal && (
+            <>
+              <Label>Ubicación del campo</Label>
+              <Input type="text" placeholder="Ej: Villaguay, Entre Ríos" value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} />
+            </>
+          )}
 
           <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 8 }}>
             <BtnSecondary onClick={() => setPaso(1)}>← Volver</BtnSecondary>
@@ -129,7 +184,7 @@ export default function Analizar({ onGuardar, notif }) {
         </Card>
       )}
 
-      {/* ── PASO 3 ── */}
+      {/* PASO 3 */}
       {paso === 3 && (
         <>
           {loading ? (
@@ -137,8 +192,8 @@ export default function Analizar({ onGuardar, notif }) {
               <Spinner />
               <p style={{ fontSize: 18, marginTop: 24, marginBottom: 10 }}>Analizando con IA...</p>
               <p style={{ fontSize: 12, color: "var(--sub)", fontFamily: "var(--mono)", lineHeight: 2 }}>
-                🤖 Claude Vision estimando peso<br />
-                🌦️ Consultando clima en {ubicacion}<br />
+                🤖 Gemini Vision estimando peso<br />
+                🌦️ Consultando clima{campoPrincipal ? ` en ${campoPrincipal.nombre}` : ""}<br />
                 💰 Calculando valor de mercado<br />
                 📈 Proyectando engorde
               </p>
@@ -170,26 +225,20 @@ function Resultado({ resultado, tipoAnimal, nombreAnimal, setNombreAnimal, onGua
 
   return (
     <div className="fade-up">
-      {/* Header */}
       <Card>
         <div style={{ marginBottom: 4, fontSize: 10, letterSpacing: "0.2em", color: "var(--verde)", fontFamily: "var(--mono)" }}>
           ANÁLISIS COMPLETADO
         </div>
         <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-          {r.fotoURL && (
-            <img src={r.fotoURL} alt="Animal" style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 10, flexShrink: 0 }} />
-          )}
+          {r.fotoURL && <img src={r.fotoURL} alt="Animal" style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 10, flexShrink: 0 }} />}
           <div>
-            <h2 style={{ fontSize: 26, marginBottom: 4, color: "#f0fdf0" }}>
-              {tipoInfo.icon} {tipoInfo.label}
-            </h2>
+            <h2 style={{ fontSize: 26, marginBottom: 4, color: "#f0fdf0" }}>{tipoInfo.icon} {tipoInfo.label}</h2>
             <p style={{ fontSize: 12, color: "var(--sub)", fontFamily: "var(--mono)", marginBottom: 10 }}>
               {r.animal?.edadMeses} meses · {r.animal?.pastura?.replace(/_/g," ")} · {r.animal?.ubicacion}
             </p>
             <span style={{
               display: "inline-block", padding: "3px 12px", borderRadius: 20,
-              fontSize: 10, fontFamily: "var(--mono)", fontWeight: 700,
-              letterSpacing: "0.1em", color: "#fff",
+              fontSize: 10, fontFamily: "var(--mono)", fontWeight: 700, letterSpacing: "0.1em", color: "#fff",
               background: CONFIANZA_COLOR[ia.confianza] || "#64748b",
             }}>
               Confianza: {(ia.confianza || "—").toUpperCase()}
@@ -198,7 +247,6 @@ function Resultado({ resultado, tipoAnimal, nombreAnimal, setNombreAnimal, onGua
         </div>
       </Card>
 
-      {/* Métricas */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
         <MetricaCard titulo="Peso Hoy" valor={`${ia.pesoEstimadoKg} kg`} color="#3b82f6" />
         <MetricaCard titulo="Cond. Corp." valor={`${ia.condicionCorporal}/9`} sub="estado de carnes" color="#8b5cf6" />
@@ -210,26 +258,23 @@ function Resultado({ resultado, tipoAnimal, nombreAnimal, setNombreAnimal, onGua
         />
       </div>
 
-      {/* Proyección engorde */}
       <Card>
-        <SectionTitle>📈 Proyección de Engorde</SectionTitle>
-        <ProyBar label="Hoy"      kg={ia.pesoEstimadoKg} maxKg={maxKg} color="#94a3b8" />
-        <ProyBar label="3 meses"  kg={proy.peso3m}       maxKg={maxKg} color="#3b82f6" />
-        <ProyBar label="6 meses"  kg={proy.peso6m}       maxKg={maxKg} color="#4ade80" />
+        <SectionTitle>📈 PROYECCIÓN DE ENGORDE</SectionTitle>
+        <ProyBar label="Hoy"     kg={ia.pesoEstimadoKg} maxKg={maxKg} color="#94a3b8" />
+        <ProyBar label="3 meses" kg={proy.peso3m}       maxKg={maxKg} color="#3b82f6" />
+        <ProyBar label="6 meses" kg={proy.peso6m}       maxKg={maxKg} color="#4ade80" />
         <p style={{ fontSize: 12, color: "var(--sub)", fontFamily: "var(--mono)", marginTop: 8 }}>
-          Ganancia: +{proy.peso3m - ia.pesoEstimadoKg} kg en 3 meses · +{proy.peso6m - ia.pesoEstimadoKg} kg en 6 meses
-          &nbsp;·&nbsp;{proy.ganDiaria} kg/día estimado
+          Ganancia: +{proy.peso3m - ia.pesoEstimadoKg} kg en 3m · +{proy.peso6m - ia.pesoEstimadoKg} kg en 6m · {proy.ganDiaria} kg/día
         </p>
       </Card>
 
-      {/* Valor Liniers */}
       <Card>
-        <SectionTitle>💰 Valor Mercado de Liniers</SectionTitle>
+        <SectionTitle>💰 VALOR MERCADO DE LINIERS</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
           {[
-            { label: "HOY",      valor: proy.valorHoy, kg: ia.pesoEstimadoKg },
-            { label: "3 MESES",  valor: proy.valor3m,  kg: proy.peso3m },
-            { label: "6 MESES",  valor: proy.valor6m,  kg: proy.peso6m },
+            { label: "HOY",     valor: proy.valorHoy, kg: ia.pesoEstimadoKg },
+            { label: "3 MESES", valor: proy.valor3m,  kg: proy.peso3m },
+            { label: "6 MESES", valor: proy.valor6m,  kg: proy.peso6m },
           ].map((item) => (
             <div key={item.label} style={{
               background: "rgba(74,222,128,0.04)", border: "1px solid rgba(74,222,128,0.15)",
@@ -241,14 +286,11 @@ function Resultado({ resultado, tipoAnimal, nombreAnimal, setNombreAnimal, onGua
             </div>
           ))}
         </div>
-        <p style={{ fontSize: 10, color: "var(--sub2)", fontFamily: "var(--mono)", marginTop: 12 }}>
-          * {r.precios?.nota}
-        </p>
+        <p style={{ fontSize: 10, color: "var(--sub2)", fontFamily: "var(--mono)", marginTop: 12 }}>* {r.precios?.nota}</p>
       </Card>
 
-      {/* Evaluación IA */}
       <Card>
-        <SectionTitle>🩺 Evaluación Veterinaria IA</SectionTitle>
+        <SectionTitle>🩺 EVALUACIÓN VETERINARIA IA</SectionTitle>
         <p style={{ fontSize: 13, color: "var(--sub)", fontFamily: "var(--mono)", lineHeight: 1.7, marginBottom: 10 }}>
           <strong style={{ color: "var(--texto)" }}>Observaciones:</strong> {ia.observaciones}
         </p>
@@ -257,9 +299,8 @@ function Resultado({ resultado, tipoAnimal, nombreAnimal, setNombreAnimal, onGua
         </p>
       </Card>
 
-      {/* Guardar */}
       <Card>
-        <SectionTitle>💾 Guardar en Stock</SectionTitle>
+        <SectionTitle>💾 GUARDAR EN STOCK</SectionTitle>
         <Input
           type="text"
           placeholder={`Ej: ${tipoInfo.label || "Animal"} Lote Norte`}
