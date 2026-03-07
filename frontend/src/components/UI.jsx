@@ -221,3 +221,8 @@ export function Spinner() {
     }} />
   );
 }
+
+// ── RESUMEN CARD (alias de MetricaCard para Stock) ────────────────────────────
+export function ResumenCard({ titulo, valor, sub, color }) {
+  return <MetricaCard titulo={titulo} valor={valor} sub={sub} color={color} />;
+}
