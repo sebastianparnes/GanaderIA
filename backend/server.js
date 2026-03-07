@@ -209,14 +209,9 @@ async function analizarConIA(tipoAnimal, edadMeses, pastura, ubicacion, base64Im
   const pasturaLabel = PASTURA_LABELS[pastura]  || pastura;
   const baseKg       = BASE_KG[tipoAnimal]      || 250;
 
-  const prompt = `Sos un veterinario ganadero argentino. Analizá este animal y respondé ÚNICAMENTE con un objeto JSON válido, sin explicaciones ni markdown.
-
-Datos: ${tipoLabel} de ${edadMeses} meses, alimentado con ${pasturaLabel}, ubicado en ${ubicacion}.
-${base64Image ? "Estimá el peso real mirando la foto." : `El peso promedio para esta categoría es ${baseKg}kg, ajustá según edad.`}
-Precio Liniers actual: $${precioLiniers}/kg. El diferencial regional para ${ubicacion} vs Liniers es negativo (flete, distancia).
-
-Respondé con exactamente este formato JSON (completá los valores reales):
-{"pesoEstimadoKg": NUMERO, "condicionCorporal": NUMERO_1_A_9, "confianza": "TEXTO", "observaciones": "TEXTO", "recomendaciones": "TEXTO", "diferencialZona": NUMERO_NEGATIVO, "contextoZona": "TEXTO"}`;
+  const prompt = `Respondé SOLO con JSON, sin texto adicional.
+Animal: ${tipoLabel}, ${edadMeses} meses, ${pasturaLabel}, ${ubicacion}. Peso base: ${baseKg}kg. Precio Liniers: $${precioLiniers}/kg.
+{"pesoEstimadoKg":0,"condicionCorporal":0,"confianza":"","observaciones":"","recomendaciones":"","diferencialZona":0,"contextoZona":""}`;
 
   const parts = [{ text: prompt }];
   if (base64Image) parts.unshift({ inline_data: { mime_type: mediaType || "image/jpeg", data: base64Image } });
@@ -224,7 +219,7 @@ Respondé con exactamente este formato JSON (completá los valores reales):
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
   const res = await axios.post(url, {
     contents: [{ parts }],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 1500 },
+    generationConfig: { temperature: 0.2, maxOutputTokens: 3000 },
   }, { timeout: 45000 });
 
   const rawText = res.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
