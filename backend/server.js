@@ -230,7 +230,7 @@ Respondé con exactamente este formato JSON (completá los valores reales):
   const rawText = res.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   // Gemini a veces envuelve el JSON en ```json ``` aunque se le pida que no
   const text = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  console.log(`Gemini OK: [${text.length} chars]:`, text.substring(0, 300));
+  console.log(`Gemini OK: [${text.length} chars]: >>>${text}<<<`);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
     try {
