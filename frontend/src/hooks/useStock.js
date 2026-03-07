@@ -1,40 +1,53 @@
 import { useState, useEffect } from "react";
 
-const STORAGE_KEY = "ganader-ia-stock";
+const API = import.meta.env.VITE_API_URL || "";
 
-export function useStock() {
-  const [stock, setStock] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+export function useStock(user) {
+  const [stock, setStock] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stock));
-  }, [stock]);
+    if (user?.id) cargar();
+  }, [user?.id]);
 
-  function agregarAnimal(animal) {
-    const nuevo = {
-      id: Date.now(),
-      guardadoEn: new Date().toISOString(),
-      ...animal,
-    };
-    setStock((prev) => [nuevo, ...prev]);
-    return nuevo;
+  async function cargar() {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/api/stock/${user.id}`);
+      const d = await r.json();
+      setStock(d.stock || []);
+    } catch(e) { console.error("Error cargando stock:", e); }
+    finally { setLoading(false); }
   }
 
-  function eliminarAnimal(id) {
-    setStock((prev) => prev.filter((a) => a.id !== id));
+  async function agregarAnimal(animal) {
+    try {
+      const { nombre, fotoURL, campo, ...rest } = animal;
+      const r = await fetch(`${API}/api/stock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuario_id: user.id, nombre, fotoURL, campo, ...rest }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        const nuevo = { id: d.id, nombre, fotoURL, campo, guardado_en: new Date().toISOString(), ...rest };
+        setStock(prev => [nuevo, ...prev]);
+        return nuevo;
+      }
+    } catch(e) { console.error("Error agregando animal:", e); }
   }
 
-  function limpiarStock() {
-    setStock([]);
+  async function eliminarAnimal(id) {
+    try {
+      await fetch(`${API}/api/stock/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, usuario_id: user.id }),
+      });
+      setStock(prev => prev.filter(a => a.id !== id));
+    } catch(e) { console.error("Error eliminando animal:", e); }
   }
 
-  // Totales calculados
   const totales = stock.reduce(
     (acc, a) => {
       const val = a.proyecciones;
@@ -47,5 +60,5 @@ export function useStock() {
     { valorHoy: 0, valor3m: 0, valor6m: 0, pesoTotal: 0 }
   );
 
-  return { stock, agregarAnimal, eliminarAnimal, limpiarStock, totales };
+  return { stock, agregarAnimal, eliminarAnimal, totales, loading };
 }

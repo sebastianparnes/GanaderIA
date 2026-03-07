@@ -1,32 +1,45 @@
 import { useState, useEffect } from "react";
 
-const STORAGE_KEY = "ganader-ia-campos";
+const API = import.meta.env.VITE_API_URL || "";
 
-export function useCampos() {
-  const [campos, setCampos] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+export function useCampos(user) {
+  const [campos, setCampos] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(campos));
-  }, [campos]);
+    if (user?.id) cargar();
+  }, [user?.id]);
 
-  function guardarCampo(campo) {
-    setCampos((prev) => {
-      const existe = prev.findIndex((c) => c.id === campo.id);
-      if (existe >= 0) {
-        const nuevo = [...prev];
-        nuevo[existe] = campo;
-        return nuevo;
+  async function cargar() {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/api/campos/${user.id}`);
+      const d = await r.json();
+      setCampos(d.campos || []);
+    } catch(e) { console.error("Error cargando campos:", e); }
+    finally { setLoading(false); }
+  }
+
+  async function guardarCampo(campo) {
+    try {
+      const r = await fetch(`${API}/api/campos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...campo, usuario_id: user.id }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        const campoConId = { ...campo, id: campo.id || d.id };
+        setCampos(prev => {
+          const existe = prev.findIndex(c => c.id === campoConId.id);
+          if (existe >= 0) { const n = [...prev]; n[existe] = campoConId; return n; }
+          return [...prev, campoConId];
+        });
+        return campoConId;
       }
-      return [...prev, campo];
-    });
+    } catch(e) { console.error("Error guardando campo:", e); }
   }
 
   const campoPrincipal = campos[0] || null;
-
-  return { campos, guardarCampo, campoPrincipal };
+  return { campos, guardarCampo, campoPrincipal, loading, recargar: cargar };
 }

@@ -6,12 +6,52 @@ const rateLimit  = require("express-rate-limit");
 const multer     = require("multer");
 const axios      = require("axios");
 const path       = require("path");
+const { createClient } = require("@libsql/client");
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
+// ── TURSO DB ──────────────────────────────────────────────────────────────────
+const db = createClient({
+  url:       process.env.TURSO_URL   || "libsql://ganaderia-sebastianparnes.aws-us-east-2.turso.io",
+  authToken: process.env.TURSO_TOKEN,
+});
+
+async function initDB() {
+  await db.batch([
+    `CREATE TABLE IF NOT EXISTS usuarios (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      username  TEXT UNIQUE NOT NULL COLLATE NOCASE,
+      creado_en TEXT DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS campos (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id INTEGER NOT NULL,
+      nombre     TEXT NOT NULL,
+      direccion  TEXT,
+      lat        REAL,
+      lon        REAL,
+      pastura    TEXT,
+      clima_json TEXT,
+      actualizado TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS stock (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id  INTEGER NOT NULL,
+      campo_id    INTEGER,
+      nombre      TEXT NOT NULL,
+      data_json   TEXT NOT NULL,
+      guardado_en TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+    )`,
+  ], "write");
+  console.log("✅ Turso DB inicializada");
+}
+initDB().catch(e => console.error("❌ DB init error:", e.message));
+
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: "*", methods: ["GET", "POST"] }));
+app.use(cors({ origin: "*", methods: ["GET", "POST", "DELETE"] }));
 app.use(express.json({ limit: "20mb" }));
 app.use("/api/", rateLimit({ windowMs: 15*60*1000, max: 100, message: { error: "Demasiadas solicitudes." } }));
 
@@ -449,6 +489,130 @@ app.post("/api/analizar", upload.single("foto"), async (req, res) => {
     console.error("❌ Error:", err.message);
     if (err.response?.data) console.error("API:", JSON.stringify(err.response.data).substring(0, 300));
     res.status(500).json({ error: err.message || "Error interno" });
+  }
+});
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+// Login / registro sin contraseña — solo username
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { username } = req.body;
+    if (!username?.trim()) return res.status(400).json({ error: "Nombre de usuario requerido" });
+    const name = username.trim().toLowerCase().replace(/[^a-z0-9_\-áéíóúñü]/gi, "").slice(0, 30);
+    if (!name) return res.status(400).json({ error: "Nombre inválido" });
+
+    // Buscar o crear usuario
+    let user = await db.execute({ sql: "SELECT * FROM usuarios WHERE username = ?", args: [name] });
+    if (user.rows.length === 0) {
+      const ins = await db.execute({ sql: "INSERT INTO usuarios (username) VALUES (?)", args: [name] });
+      user = await db.execute({ sql: "SELECT * FROM usuarios WHERE id = ?", args: [ins.lastInsertRowid] });
+      console.log(`👤 Nuevo usuario: ${name}`);
+    } else {
+      console.log(`👤 Login: ${name}`);
+    }
+    const u = user.rows[0];
+    res.json({ ok: true, user: { id: Number(u.id), username: u.username, creado_en: u.creado_en } });
+  } catch(e) {
+    console.error("Auth error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── CAMPOS ────────────────────────────────────────────────────────────────────
+app.get("/api/campos/:userId", async (req, res) => {
+  try {
+    const r = await db.execute({ sql: "SELECT * FROM campos WHERE usuario_id = ? ORDER BY id ASC", args: [req.params.userId] });
+    const campos = r.rows.map(c => ({
+      id: Number(c.id), nombre: c.nombre, direccion: c.direccion,
+      lat: c.lat, lon: c.lon, pastura: c.pastura,
+      clima: c.clima_json ? JSON.parse(c.clima_json) : null,
+      actualizado: c.actualizado,
+    }));
+    res.json({ campos });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/campos", async (req, res) => {
+  try {
+    const { usuario_id, id, nombre, direccion, lat, lon, pastura, clima } = req.body;
+    if (!usuario_id || !nombre) return res.status(400).json({ error: "Faltan datos" });
+    const climaStr = clima ? JSON.stringify(clima) : null;
+
+    if (id) {
+      // Actualizar campo existente
+      await db.execute({
+        sql: "UPDATE campos SET nombre=?, direccion=?, lat=?, lon=?, pastura=?, clima_json=?, actualizado=datetime('now') WHERE id=? AND usuario_id=?",
+        args: [nombre, direccion||null, lat||null, lon||null, pastura||null, climaStr, id, usuario_id],
+      });
+      res.json({ ok: true, id });
+    } else {
+      // Crear campo nuevo
+      const ins = await db.execute({
+        sql: "INSERT INTO campos (usuario_id, nombre, direccion, lat, lon, pastura, clima_json) VALUES (?,?,?,?,?,?,?)",
+        args: [usuario_id, nombre, direccion||null, lat||null, lon||null, pastura||null, climaStr],
+      });
+      res.json({ ok: true, id: Number(ins.lastInsertRowid) });
+    }
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/campos/clima", async (req, res) => {
+  try {
+    const { campo_id, usuario_id, clima } = req.body;
+    await db.execute({
+      sql: "UPDATE campos SET clima_json=?, actualizado=datetime('now') WHERE id=? AND usuario_id=?",
+      args: [JSON.stringify(clima), campo_id, usuario_id],
+    });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── STOCK ─────────────────────────────────────────────────────────────────────
+app.get("/api/stock/:userId", async (req, res) => {
+  try {
+    const r = await db.execute({ sql: "SELECT * FROM stock WHERE usuario_id = ? ORDER BY guardado_en DESC", args: [req.params.userId] });
+    const stock = r.rows.map(s => ({ id: Number(s.id), nombre: s.nombre, guardado_en: s.guardado_en, ...JSON.parse(s.data_json) }));
+    res.json({ stock });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/stock", async (req, res) => {
+  try {
+    const { usuario_id, campo_id, nombre, ...data } = req.body;
+    if (!usuario_id || !nombre) return res.status(400).json({ error: "Faltan datos" });
+    const ins = await db.execute({
+      sql: "INSERT INTO stock (usuario_id, campo_id, nombre, data_json) VALUES (?,?,?,?)",
+      args: [usuario_id, campo_id||null, nombre, JSON.stringify(data)],
+    });
+    res.json({ ok: true, id: Number(ins.lastInsertRowid) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/stock/delete", async (req, res) => {
+  try {
+    const { id, usuario_id } = req.body;
+    await db.execute({ sql: "DELETE FROM stock WHERE id=? AND usuario_id=?", args: [id, usuario_id] });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── CLIMA CAMPO (endpoint público con lat/lon) ─────────────────────────────────
+app.get("/api/clima", async (req, res) => {
+  try {
+    const { lat, lon } = req.query;
+    if (!lat || !lon) return res.status(400).json({ error: "lat/lon requeridos" });
+    const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,weathercode,windspeed_10m_max&hourly=relativehumidity_2m&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=14`;
+    const r = await axios.get(wxUrl, { timeout: 8000 });
+    res.json(r.data);
+  } catch(e) {
+    // fallback wttr.in
+    try {
+      const { lat, lon } = req.query;
+      const r2 = await axios.get(`https://wttr.in/${lat},${lon}?format=j1`, { timeout: 8000 });
+      res.json({ wttr: r2.data });
+    } catch(e2) {
+      res.status(500).json({ error: "No se pudo obtener el clima" });
+    }
   }
 });
 

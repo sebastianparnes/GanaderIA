@@ -101,7 +101,7 @@ function MapaPicker({ lat, lon, onSelect }) {
       style={{
         width: "100%", height: 320, borderRadius: 12,
         border: "1px solid var(--borde)", overflow: "hidden",
-        background: "#0d160d",
+        background: "#ffffff",
       }}
     />
   );
@@ -121,7 +121,7 @@ function Pronostico({ clima }) {
             key={fecha}
             style={{
               minWidth: 80, padding: "12px 8px", borderRadius: 10, textAlign: "center",
-              border: "1px solid var(--borde)", background: "rgba(74,222,128,0.03)",
+              border: "1px solid var(--borde)", background: "#f8fafc",
               flexShrink: 0,
             }}
           >
@@ -129,14 +129,14 @@ function Pronostico({ clima }) {
               {formatFechaDia(fecha)}
             </div>
             <div style={{ fontSize: 24, marginBottom: 6 }}>{wxIcon(daily.weathercode[i])}</div>
-            <div style={{ fontSize: 12, fontFamily: "var(--mono)", color: "#f0fdf0", fontWeight: 700 }}>
+            <div style={{ fontSize: 12, fontFamily: "var(--mono)", color: "#0f172a", fontWeight: 700 }}>
               {Math.round(daily.temperature_2m_max[i])}°
             </div>
             <div style={{ fontSize: 11, color: "var(--sub)", fontFamily: "var(--mono)" }}>
               {Math.round(daily.temperature_2m_min[i])}°
             </div>
             {daily.precipitation_sum[i] > 0 && (
-              <div style={{ fontSize: 10, color: "#60a5fa", fontFamily: "var(--mono)", marginTop: 4 }}>
+              <div style={{ fontSize: 10, color: "#0891b2", fontFamily: "var(--mono)", marginTop: 4 }}>
                 {Math.round(daily.precipitation_sum[i])}mm
               </div>
             )}
@@ -151,7 +151,7 @@ function Pronostico({ clima }) {
 }
 
 // ── PÁGINA PRINCIPAL ──────────────────────────────────────────────────────────
-export default function Campo({ campos, onGuardar }) {
+export default function Campo({ campos, onGuardar, user }) {
   const campo = campos[0] || null; // por ahora un solo campo
 
   const [nombre, setNombre] = useState(campo?.nombre || "");
@@ -226,7 +226,7 @@ export default function Campo({ campos, onGuardar }) {
     if (!lat || !lon)   { alert("Seleccioná la ubicación en el mapa"); return; }
     if (!pastura)       { alert("Seleccioná el tipo de pastura"); return; }
     onGuardar({
-      id: campo?.id || Date.now(),
+      id: campo?.id || null,
       nombre, lat, lon, direccion, pastura, clima,
       actualizadoEn: new Date().toISOString(),
     });
@@ -240,7 +240,7 @@ export default function Campo({ campos, onGuardar }) {
         <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "var(--verde)", fontFamily: "var(--mono)", marginBottom: 6 }}>
           CONFIGURACIÓN
         </div>
-        <h2 style={{ fontSize: 26, color: "#f0fdf0", marginBottom: 6 }}>🌾 Mi Campo</h2>
+        <h2 style={{ fontSize: 26, color: "#0f172a", marginBottom: 6 }}>🌾 Mi Campo</h2>
         <p style={{ fontSize: 13, color: "var(--sub)", fontFamily: "var(--mono)" }}>
           Configurá la ubicación y pastura de tu campo. Estos datos se usan en todos los análisis.
         </p>
