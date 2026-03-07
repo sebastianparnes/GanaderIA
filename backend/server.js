@@ -45,10 +45,38 @@ async function initDB() {
       guardado_en TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
     )`,
+    `CREATE TABLE IF NOT EXISTS lotes (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      campo_id    INTEGER NOT NULL,
+      usuario_id  INTEGER NOT NULL,
+      nombre      TEXT NOT NULL,
+      pastura     TEXT,
+      hectareas   REAL,
+      creado_en   TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (campo_id) REFERENCES campos(id),
+      FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS precios_historico (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      fecha     TEXT NOT NULL,
+      data_json TEXT NOT NULL,
+      UNIQUE(fecha)
+    )`,
   ], "write");
   console.log("✅ Turso DB inicializada");
 }
 initDB().catch(e => console.error("❌ DB init error:", e.message));
+
+// Migraciones opcionales (pueden fallar si ya existen)
+async function runMigrations() {
+  const migrations = [
+    `ALTER TABLE stock ADD COLUMN lote_id INTEGER REFERENCES lotes(id)`,
+  ];
+  for (const sql of migrations) {
+    try { await db.execute(sql); } catch(e) { /* columna ya existe, OK */ }
+  }
+}
+runMigrations().catch(() => {});
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: "*", methods: ["GET", "POST", "DELETE"] }));
@@ -220,6 +248,13 @@ async function getPreciosLiniers() {
           scrapeadoEn: new Date().toISOString(),
         };
         _cacheFecha = ahora;
+        // Guardar en histórico Turso
+        try {
+          await db.execute({
+            sql: "INSERT OR IGNORE INTO precios_historico (fecha, data_json) VALUES (?,?)",
+            args: [fechaStr, JSON.stringify({ precios: preciosCompletos, preciosRaw: precios })],
+          });
+        } catch(e) { /* no bloquear si falla */ }
         console.log(`✅ MAG scrapeado OK: ${fechaStr}`);
         return _cacheLiniers;
       }
@@ -593,6 +628,89 @@ app.post("/api/stock/delete", async (req, res) => {
     const { id, usuario_id } = req.body;
     await db.execute({ sql: "DELETE FROM stock WHERE id=? AND usuario_id=?", args: [id, usuario_id] });
     res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── LOTES ─────────────────────────────────────────────────────────────────────
+app.get("/api/lotes/:campoId", async (req, res) => {
+  try {
+    const r = await db.execute({
+      sql: `SELECT l.*, 
+              (SELECT COUNT(*) FROM stock s WHERE s.lote_id = l.id) as cantidad_animales
+            FROM lotes l WHERE l.campo_id = ? ORDER BY l.id ASC`,
+      args: [req.params.campoId],
+    });
+    const lotes = r.rows.map(l => ({
+      id: Number(l.id), campo_id: Number(l.campo_id), nombre: l.nombre,
+      pastura: l.pastura, hectareas: l.hectareas,
+      cantidad_animales: Number(l.cantidad_animales), creado_en: l.creado_en,
+    }));
+    res.json({ lotes });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/lotes", async (req, res) => {
+  try {
+    const { id, campo_id, usuario_id, nombre, pastura, hectareas } = req.body;
+    if (!campo_id || !usuario_id || !nombre) return res.status(400).json({ error: "Faltan datos" });
+    if (id) {
+      await db.execute({
+        sql: "UPDATE lotes SET nombre=?, pastura=?, hectareas=? WHERE id=? AND usuario_id=?",
+        args: [nombre, pastura||null, hectareas||null, id, usuario_id],
+      });
+      res.json({ ok: true, id });
+    } else {
+      const ins = await db.execute({
+        sql: "INSERT INTO lotes (campo_id, usuario_id, nombre, pastura, hectareas) VALUES (?,?,?,?,?)",
+        args: [campo_id, usuario_id, nombre, pastura||null, hectareas||null],
+      });
+      res.json({ ok: true, id: Number(ins.lastInsertRowid) });
+    }
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/lotes/delete", async (req, res) => {
+  try {
+    const { id, usuario_id } = req.body;
+    // Desasignar animales del lote antes de borrar
+    await db.execute({ sql: "UPDATE stock SET lote_id=NULL WHERE lote_id=?", args: [id] });
+    await db.execute({ sql: "DELETE FROM lotes WHERE id=? AND usuario_id=?", args: [id, usuario_id] });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Asignar animal a lote
+app.post("/api/stock/asignar-lote", async (req, res) => {
+  try {
+    const { stock_id, lote_id, usuario_id } = req.body;
+    await db.execute({
+      sql: "UPDATE stock SET lote_id=? WHERE id=? AND usuario_id=?",
+      args: [lote_id || null, stock_id, usuario_id],
+    });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Stock por lote
+app.get("/api/stock/:userId/lote/:loteId", async (req, res) => {
+  try {
+    const { userId, loteId } = req.params;
+    const sql = loteId === "sin-lote"
+      ? { sql: "SELECT * FROM stock WHERE usuario_id=? AND lote_id IS NULL ORDER BY guardado_en DESC", args: [userId] }
+      : { sql: "SELECT * FROM stock WHERE usuario_id=? AND lote_id=? ORDER BY guardado_en DESC", args: [userId, loteId] };
+    const r = await db.execute(sql);
+    const stock = r.rows.map(s => ({ id: Number(s.id), nombre: s.nombre, lote_id: s.lote_id ? Number(s.lote_id) : null, guardado_en: s.guardado_en, ...JSON.parse(s.data_json) }));
+    res.json({ stock });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── LINIERS HISTÓRICO ──────────────────────────────────────────────────────────
+app.get("/api/liniers/historico", async (req, res) => {
+  try {
+    // Devolver los últimos 30 registros guardados
+    const r = await db.execute("SELECT fecha, data_json FROM precios_historico ORDER BY fecha DESC LIMIT 30");
+    const historico = r.rows.map(row => ({ fecha: row.fecha, ...JSON.parse(row.data_json) }));
+    res.json({ historico });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

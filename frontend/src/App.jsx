@@ -5,6 +5,8 @@ import Analizar from "./pages/Analizar.jsx";
 import Stock from "./pages/Stock.jsx";
 import Campo from "./pages/Campo.jsx";
 import Clima from "./pages/Clima.jsx";
+import Lotes from "./pages/Lotes.jsx";
+import Liniers from "./pages/Liniers.jsx";
 import Login from "./pages/Login.jsx";
 import { Notif } from "./components/UI.jsx";
 import { useStock } from "./hooks/useStock.js";
@@ -14,11 +16,10 @@ import { useAuth } from "./hooks/useAuth.js";
 
 export default function App() {
   const { user, login, logout, loading: authLoading, error: authError } = useAuth();
-  const { stock, agregarAnimal, eliminarAnimal, totales } = useStock(user);
+  const { stock, agregarAnimal, eliminarAnimal, asignarLote, totales } = useStock(user);
   const { notif, mostrar } = useNotif();
   const { campos, guardarCampo, campoPrincipal } = useCampos(user);
 
-  // Sin login → pantalla de login
   if (!user) {
     return <Login onLogin={login} loading={authLoading} error={authError} />;
   }
@@ -33,6 +34,8 @@ export default function App() {
         <Route path="/stock"    element={<Stock stock={stock} onEliminar={eliminarAnimal} totales={totales} />} />
         <Route path="/campo"    element={<Campo campos={campos} onGuardar={guardarCampo} user={user} />} />
         <Route path="/clima"    element={<Clima campoPrincipal={campoPrincipal} />} />
+        <Route path="/lotes"    element={<Lotes campoPrincipal={campoPrincipal} user={user} stock={stock} onAsignarLote={asignarLote} />} />
+        <Route path="/liniers"  element={<Liniers />} />
         <Route path="*"         element={<Navigate to="/" />} />
       </Routes>
     </>

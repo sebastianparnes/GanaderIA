@@ -60,5 +60,16 @@ export function useStock(user) {
     { valorHoy: 0, valor3m: 0, valor6m: 0, pesoTotal: 0 }
   );
 
-  return { stock, agregarAnimal, eliminarAnimal, totales, loading };
+  async function asignarLote(stockId, loteId) {
+    try {
+      await fetch(`${API}/api/stock/asignar-lote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stock_id: stockId, lote_id: loteId, usuario_id: user.id }),
+      });
+      setStock(prev => prev.map(a => a.id === stockId ? { ...a, lote_id: loteId } : a));
+    } catch(e) { console.error("Error asignando lote:", e); }
+  }
+
+  return { stock, agregarAnimal, eliminarAnimal, asignarLote, totales, loading };
 }
