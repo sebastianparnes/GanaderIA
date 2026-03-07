@@ -259,6 +259,7 @@ Respondé SOLO con este JSON sin markdown:
 // ── CLIMA ─────────────────────────────────────────────────────────────────────
 async function getClima(ubicacion, lat, lon) {
   try {
+    console.log(`🌦️ getClima: ubicacion="${ubicacion}" lat="${lat}" lon="${lon}"`);
     let latitude  = (lat && !isNaN(parseFloat(lat)))  ? parseFloat(lat)  : null;
     let longitude = (lon && !isNaN(parseFloat(lon))) ? parseFloat(lon) : null;
     let name = ubicacion;
@@ -280,7 +281,7 @@ async function getClima(ubicacion, lat, lon) {
     }
 
     const wxRes = await axios.get("https://api.open-meteo.com/v1/forecast", {
-      params: { latitude, longitude, daily: "precipitation_sum,temperature_2m_max", timezone: "America/Argentina/Buenos_Aires", forecast_days: 30 },
+      params: { latitude, longitude, daily: "precipitation_sum,temperature_2m_max", timezone: "auto", forecast_days: 30 },
       timeout: 5000,
     });
     const lluvia = wxRes.data.daily.precipitation_sum.reduce((a, b) => a + b, 0);
