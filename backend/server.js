@@ -502,11 +502,13 @@ function calcularProyecciones(peso, pastura, factorClima, precioLiniers, precioZ
   const fp = FACTOR_PASTURA[pastura] || 1.0;
   const fpFinal = factorSatelital ? (fp * 0.4 + factorSatelital * 0.6) : fp;
 
-  // Ganancia diaria proporcional al peso del animal (animales más pesados ganan más kg/día)
-  // Base: ~0.8% del peso vivo por día en condiciones normales, ajustado por pastura y clima
-  // Ternero 150kg → ~0.18 kg/día en campo malo | Novillo 350kg → ~0.55 kg/día en alfalfa
-  const ganBase = peso * 0.0012; // 0.12% del peso vivo como base
-  const ganDiaria = parseFloat((ganBase * fpFinal * factorClima).toFixed(2));
+  // Ganancia diaria real para bovinos en Argentina:
+  // Base: 0.5 kg/día en condiciones normales (campo natural, clima normal)
+  // Máximo biológico real: ~1.2 kg/día (confinamiento, alfalfa, clima ideal)
+  // Mínimo: ~0.15 kg/día (campo degradado, sequía)
+  const ganBase = 0.5; // kg/día base
+  const ganRaw = ganBase * fpFinal * factorClima;
+  const ganDiaria = parseFloat(Math.min(1.2, Math.max(0.15, ganRaw)).toFixed(2));
 
   const peso3m = Math.round(peso + ganDiaria * 90);
   const peso6m = Math.round(peso + ganDiaria * 180);
