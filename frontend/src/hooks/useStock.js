@@ -80,12 +80,8 @@ export function useStock(user) {
       });
       const d = await r.json();
       if (d.ok) {
-        setStock(prev => prev.map(a => a.id === id
-          ? { ...a, ia: nuevoAnalisis.ia, proyecciones: nuevoAnalisis.proyecciones,
-              clima: nuevoAnalisis.clima, satelital: nuevoAnalisis.satelital,
-              historial: [...(a.historial || []), d.snapshot] }
-          : a
-        ));
+        // Recargar el stock completo para tener el estado exacto de Turso
+        await cargar();
       }
       return d;
     } catch(e) { console.error("Error actualizando animal:", e); }

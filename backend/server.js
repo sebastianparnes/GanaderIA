@@ -500,10 +500,14 @@ async function getClima(ubicacion, lat, lon) {
 // ── PROYECCIONES ──────────────────────────────────────────────────────────────
 function calcularProyecciones(peso, pastura, factorClima, precioLiniers, precioZona, factorSatelital = null) {
   const fp = FACTOR_PASTURA[pastura] || 1.0;
-  // Si hay análisis satelital, reemplaza el factor de pastura declarado por el usuario
-  // (lo que realmente se ve desde el satélite > lo que el usuario dice que tiene)
   const fpFinal = factorSatelital ? (fp * 0.4 + factorSatelital * 0.6) : fp;
-  const ganDiaria = parseFloat((0.7 * fpFinal * factorClima).toFixed(2));
+
+  // Ganancia diaria proporcional al peso del animal (animales más pesados ganan más kg/día)
+  // Base: ~0.8% del peso vivo por día en condiciones normales, ajustado por pastura y clima
+  // Ternero 150kg → ~0.18 kg/día en campo malo | Novillo 350kg → ~0.55 kg/día en alfalfa
+  const ganBase = peso * 0.0012; // 0.12% del peso vivo como base
+  const ganDiaria = parseFloat((ganBase * fpFinal * factorClima).toFixed(2));
+
   const peso3m = Math.round(peso + ganDiaria * 90);
   const peso6m = Math.round(peso + ganDiaria * 180);
   const tend = 0.02;
