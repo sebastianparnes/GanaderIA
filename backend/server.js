@@ -285,7 +285,7 @@ async function llamarGemini(parts, intento = 0) {
     return await axios.post(url, {
       contents: [{ parts }],
       generationConfig: { temperature: 0.2, maxOutputTokens: 3000 },
-    }, { timeout: 45000 });
+    }, { timeout: 90000 }); // 90s para imagen satelital
   } catch(e) {
     if (e.response?.status === 429 && intento < 3) {
       const espera = [20000, 40000, 60000][intento];
@@ -358,9 +358,10 @@ async function getSatelitalBase64(lat, lon) {
   const MAPS_KEY = process.env.MAPS_STATIC_KEY;
   if (!MAPS_KEY) return null;
   try {
-    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=16&size=640x640&maptype=satellite&key=${MAPS_KEY}`;
+    // 400x400 en vez de 640x640 — suficiente para análisis de pasturas, mucho más liviano
+    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=15&size=400x400&maptype=satellite&key=${MAPS_KEY}`;
     console.log(`🛰️ Descargando imagen satelital: ${lat},${lon}`);
-    const res = await axios.get(url, { responseType: "arraybuffer", timeout: 10000 });
+    const res = await axios.get(url, { responseType: "arraybuffer", timeout: 8000 });
     const base64 = Buffer.from(res.data).toString("base64");
     console.log(`✅ Imagen satelital OK: ${Math.round(base64.length/1024)}KB`);
     return base64;
@@ -372,18 +373,44 @@ async function getSatelitalBase64(lat, lon) {
 
 async function analizarPasturaSatelital(lat, lon, ubicacion) {
   const imgBase64 = await getSatelitalBase64(lat, lon);
-  if (!imgBase64) return null;
+  if (!imgBase64) {
+    console.warn("🛰️ No se pudo obtener imagen satelital");
+    return null;
+  }
 
-  const prompt = `Sos un ingeniero agrónomo argentino experto en pasturas. Analizá esta imagen satelital del campo ubicado en ${ubicacion} (coordenadas: ${lat}, ${lon}) y respondé SOLO con JSON válido.
+  console.log(`🛰️ Imagen lista (${Math.round(imgBase64.length/1024)}KB), mandando a Gemini...`);
 
-Evaluá:
-- Cobertura y densidad del pasto (% de cobertura verde)
-- Estado hídrico aparente (seco/normal/húmedo)
-- Tipo de vegetación visible
-- Calidad estimada para alimentación bovina
-- Factor de ajuste para el engorde (entre 0.5 y 1.3)
-
+  const prompt = `Agrónomo argentino. Analizá esta imagen satelital del campo en ${ubicacion}. Respondé SOLO con JSON válido sin markdown.
 {"coberturaVerde":0,"estadoHidrico":"","tipoVegetacion":"","calidadPastura":"","factorPastura":0,"observacionesCampo":"","recomendacionesCampo":""}`;
+
+  const parts = [
+    { inline_data: { mime_type: "image/png", data: imgBase64 } },
+    { text: prompt },
+  ];
+
+  console.log(`🛰️ Llamando Gemini para análisis satelital...`);
+  const res = await llamarGemini(parts);
+  if (!res) {
+    console.warn("🛰️ Gemini devolvió null para análisis satelital");
+    return null;
+  }
+
+  const rawText = res.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  console.log(`🛰️ Gemini respondió: ${rawText.substring(0, 300)}`);
+  const text = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const resultado = JSON.parse(jsonMatch[0]);
+      console.log(`✅ Análisis satelital OK: cobertura=${resultado.coberturaVerde}% factor=${resultado.factorPastura}`);
+      return resultado;
+    } catch(e) {
+      console.warn("🛰️ JSON inválido:", e.message);
+    }
+  }
+  console.warn("🛰️ No se encontró JSON en respuesta:", rawText.substring(0, 200));
+  return null;
+}
 
   const parts = [
     { inline_data: { mime_type: "image/png", data: imgBase64 } },
@@ -802,19 +829,34 @@ app.get("/api/liniers/historico", async (req, res) => {
 });
 
 // ── ANÁLISIS SATELITAL DIRECTO (para página Mi Campo) ─────────────────────────
+// Paso 1: solo devuelve la URL de la imagen (instantáneo)
+app.get("/api/satelital/imagen", async (req, res) => {
+  const { lat, lon } = req.query;
+  if (!lat || !lon) return res.status(400).json({ error: "lat/lon requeridos" });
+  const MAPS_KEY = process.env.MAPS_STATIC_KEY;
+  if (!MAPS_KEY) return res.status(503).json({ error: "MAPS_STATIC_KEY no configurada" });
+  const imgUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=15&size=400x400&maptype=satellite&key=${MAPS_KEY}`;
+  res.json({ imgUrl });
+});
+
+// Paso 2: análisis completo con Gemini (puede tardar 20-40s)
 app.get("/api/satelital", async (req, res) => {
   try {
     const { lat, lon, ubicacion } = req.query;
     if (!lat || !lon) return res.status(400).json({ error: "lat/lon requeridos" });
+    console.log(`🛰️ Iniciando análisis satelital: ${lat},${lon} - ${ubicacion}`);
     const resultado = await analizarPasturaSatelital(parseFloat(lat), parseFloat(lon), ubicacion || `${lat},${lon}`);
+    console.log(`🛰️ Resultado: ${JSON.stringify(resultado)?.substring(0, 100)}`);
     if (!resultado) return res.status(503).json({ error: "Análisis satelital no disponible" });
-    // Incluir URL de la imagen para mostrar en el frontend
     const MAPS_KEY = process.env.MAPS_STATIC_KEY;
     const imgUrl = MAPS_KEY
-      ? `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=16&size=640x640&maptype=satellite&key=${MAPS_KEY}`
+      ? `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=15&size=400x400&maptype=satellite&key=${MAPS_KEY}`
       : null;
     res.json({ ...resultado, imgUrl });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) {
+    console.error("🛰️ Error en análisis satelital:", e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── CLIMA CAMPO (endpoint público con lat/lon) ─────────────────────────────────

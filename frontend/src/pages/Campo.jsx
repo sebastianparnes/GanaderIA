@@ -164,22 +164,35 @@ export default function Campo({ campos, onGuardar, user }) {
   const [loadingGeo, setLoadingGeo] = useState(false);
   const [guardado, setGuardado] = useState(false);
   const [busqueda, setBusqueda] = useState("");
-  const [satelital, setSatelital] = useState(null);
+  const [satelital, setSatelital]           = useState(null);
+  const [satelitalImg, setSatelitalImg]     = useState(null);
   const [loadingSatelital, setLoadingSatelital] = useState(false);
+  const [loadingAnalisis, setLoadingAnalisis]   = useState(false);
 
   const API = import.meta.env.VITE_API_URL || "";
 
   async function analizarSatelital() {
     if (!lat || !lon) return;
-    setLoadingSatelital(true); setSatelital(null);
+    setSatelital(null);
+    setLoadingSatelital(true);
+
+    // Paso 1: mostrar imagen al toque
+    try {
+      const r = await fetch(`${API}/api/satelital/imagen?lat=${lat}&lon=${lon}`);
+      const d = await r.json();
+      if (d.imgUrl) setSatelitalImg(d.imgUrl);
+    } catch(e) { console.error(e); }
+    setLoadingSatelital(false);
+
+    // Paso 2: análisis Gemini en segundo plano
+    setLoadingAnalisis(true);
     try {
       const r = await fetch(`${API}/api/satelital?lat=${lat}&lon=${lon}&ubicacion=${encodeURIComponent(direccion || nombre)}`);
       const d = await r.json();
-      if (d.error) throw new Error(d.error);
-      setSatelital(d);
-    } catch(e) {
-      console.error("Error satelital:", e);
-    } finally { setLoadingSatelital(false); }
+      if (!d.error) setSatelital(d);
+      else console.warn("Análisis satelital:", d.error);
+    } catch(e) { console.error(e); }
+    finally { setLoadingAnalisis(false); }
   }
 
   // Si ya tiene coordenadas, cargar clima
@@ -323,47 +336,69 @@ export default function Campo({ campos, onGuardar, user }) {
             La IA analiza la imagen satelital de tu campo y estima la calidad real de los pastizales, cobertura verde y estado hídrico.
           </p>
 
-          {!satelital && !loadingSatelital && (
+          {!satelitalImg && !loadingSatelital && (
             <BtnPrimary onClick={analizarSatelital} style={{ fontSize: 14 }}>
-              🛰️ Analizar pasturas desde satélite
+              🛰️ Ver mi campo desde el satélite
             </BtnPrimary>
           )}
 
           {loadingSatelital && (
-            <div style={{ textAlign: "center", padding: "24px 0" }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🛰️</div>
-              <p style={{ fontSize: 13, color: "#64748b" }}>Descargando imagen satelital y analizando pasturas...</p>
+            <div style={{ textAlign: "center", padding: "20px 0", color: "#64748b", fontSize: 13 }}>
+              🛰️ Cargando imagen satelital...
             </div>
           )}
 
-          {satelital && (
+          {/* Imagen satelital — aparece al toque */}
+          {satelitalImg && (
             <div>
-              {satelital.imgUrl && (
-                <img src={satelital.imgUrl} alt="Vista satelital" style={{ width: "100%", borderRadius: 10, marginBottom: 16, border: "1px solid #e2e8f0" }} />
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 16 }}>
-                {[
-                  { label: "Cobertura verde", valor: `${satelital.coberturaVerde}%`, color: "#16a34a" },
-                  { label: "Estado hídrico",  valor: satelital.estadoHidrico,        color: "#0891b2" },
-                  { label: "Calidad pastura", valor: satelital.calidadPastura,       color: "#7c3aed" },
-                  { label: "Factor engorde",  valor: `${Math.round(satelital.factorPastura * 100)}%`, color: "#d97706" },
-                ].map(m => (
-                  <div key={m.label} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "12px 10px", textAlign: "center", borderTop: `3px solid ${m.color}` }}>
-                    <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{m.label}</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: m.color }}>{m.valor}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 10, padding: "14px 16px", fontSize: 13, color: "#1e293b", marginBottom: 12 }}>
-                <strong>Tipo de vegetación:</strong> {satelital.tipoVegetacion}<br />
-                <span style={{ color: "#64748b", marginTop: 6, display: "block" }}>{satelital.observacionesCampo}</span>
-              </div>
-              {satelital.recomendacionesCampo && (
-                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#166534" }}>
-                  💡 <strong>Recomendación:</strong> {satelital.recomendacionesCampo}
+              <img src={satelitalImg} alt="Vista satelital del campo" style={{
+                width: "100%", borderRadius: 12, marginBottom: 16,
+                border: "1px solid #e2e8f0",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+              }} />
+
+              {/* Análisis cargando en segundo plano */}
+              {loadingAnalisis && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "12px 16px", borderRadius: 10,
+                  background: "#f8fafc", border: "1px solid #e2e8f0",
+                  fontSize: 13, color: "#64748b", marginBottom: 12,
+                }}>
+                  <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid #e2e8f0", borderTopColor: "#7c3aed", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
+                  Gemini está analizando la pastura...
                 </div>
               )}
-              <button onClick={analizarSatelital} style={{ marginTop: 12, background: "none", border: "none", color: "#16a34a", cursor: "pointer", fontSize: 12, textDecoration: "underline" }}>
+
+              {/* Resultados del análisis */}
+              {satelital && (
+                <div className="fade-up">
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginBottom: 14 }}>
+                    {[
+                      { label: "Cobertura verde", valor: `${satelital.coberturaVerde}%`, color: "#16a34a" },
+                      { label: "Estado hídrico",  valor: satelital.estadoHidrico,        color: "#0891b2" },
+                      { label: "Calidad pastura", valor: satelital.calidadPastura,       color: "#7c3aed" },
+                      { label: "Factor engorde",  valor: `${Math.round((satelital.factorPastura||1) * 100)}%`, color: "#d97706" },
+                    ].map(m => (
+                      <div key={m.label} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "12px 10px", textAlign: "center", borderTop: `3px solid ${m.color}` }}>
+                        <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{m.label}</div>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: m.color }}>{m.valor}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 10, padding: "14px 16px", fontSize: 13, color: "#1e293b", marginBottom: 10 }}>
+                    <strong>🌿 {satelital.tipoVegetacion}</strong>
+                    <p style={{ color: "#64748b", marginTop: 6, lineHeight: 1.6 }}>{satelital.observacionesCampo}</p>
+                  </div>
+                  {satelital.recomendacionesCampo && (
+                    <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#166534" }}>
+                      💡 <strong>Recomendación:</strong> {satelital.recomendacionesCampo}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button onClick={analizarSatelital} style={{ marginTop: 14, background: "none", border: "none", color: "#7c3aed", cursor: "pointer", fontSize: 12, textDecoration: "underline" }}>
                 ↻ Actualizar análisis
               </button>
             </div>
