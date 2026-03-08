@@ -281,7 +281,8 @@ function HistorialAnimal({ historial, proyeccionesIniciales }) {
 
 // ── BOTÓN NUEVA FOTO ──────────────────────────────────────────────────────────
 function BtnNuevaFoto({ animal, onReanalizar, cargando }) {
-  const inputRef = useRef(null);
+  const inputRef  = useRef(null);
+  const camaraRef = useRef(null);
   const [foto, setFoto]       = useState(null);
   const [preview, setPreview] = useState(null);
   const [modo, setModo]       = useState(false); // mostrar panel
@@ -327,14 +328,21 @@ function BtnNuevaFoto({ animal, onReanalizar, cargando }) {
         <img src={preview} alt="preview" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 8, marginBottom: 12 }} />
       )}
 
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" onChange={onFoto} style={{ display: "none" }} />
+      <input ref={inputRef} type="file" accept="image/*" onChange={onFoto} style={{ display: "none" }} />
+      <input ref={camaraRef} type="file" accept="image/*" capture="environment" onChange={onFoto} style={{ display: "none" }} />
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <button onClick={() => camaraRef.current.click()} style={{
+          padding: "9px 16px", borderRadius: 8, border: "1.5px solid #bbf7d0",
+          background: "#f0fdf4", color: "#166534", cursor: "pointer", fontSize: 13, fontWeight: 600,
+        }}>
+          📷 Sacar foto
+        </button>
         <button onClick={() => inputRef.current.click()} style={{
           padding: "9px 16px", borderRadius: 8, border: "1.5px solid #e2e8f0",
           background: "#fff", color: "#374151", cursor: "pointer", fontSize: 13,
         }}>
-          {foto ? "📷 Cambiar foto" : "📷 Elegir foto"}
+          🖼️ Elegir de galería
         </button>
         {foto && <span style={{ fontSize: 12, color: "#16a34a", alignSelf: "center" }}>✓ {foto.name}</span>}
       </div>

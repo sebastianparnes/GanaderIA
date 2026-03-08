@@ -21,7 +21,8 @@ export default function Analizar({ onGuardar, notif, campoPrincipal }) {
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [nombreAnimal, setNombreAnimal] = useState("");
-  const fileRef = useRef();
+  const fileRef   = useRef();
+  const camaraRef = useRef();
 
   function handleFoto(e) {
     const file = e.target.files[0];
@@ -125,22 +126,27 @@ export default function Analizar({ onGuardar, notif, campoPrincipal }) {
           <p style={{ fontSize: 12, color: "var(--sub)", fontFamily: "var(--mono)", marginBottom: 24 }}>
             Foto clara de cuerpo entero, de costado si es posible
           </p>
-          <div
-            onClick={() => fileRef.current?.click()}
-            style={{
-              border: "2px dashed #86efac", borderRadius: 12,
-              padding: "52px 24px", textAlign: "center", cursor: "pointer", marginBottom: 16,
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--verde)"}
-            onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(74,222,128,0.25)"}
-          >
+          <div style={{ border: "2px dashed #86efac", borderRadius: 12, padding: "32px 24px", textAlign: "center", marginBottom: 16 }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🐄</div>
-            <p style={{ color: "var(--sub)", fontSize: 15, fontFamily: "var(--mono)", marginBottom: 4 }}>
-              Hacé clic para tomar foto o subir imagen
-            </p>
-            <p style={{ color: "var(--sub2)", fontSize: 12, fontFamily: "var(--mono)" }}>JPG · PNG · HEIC · Máx 15MB</p>
+            <p style={{ color: "var(--sub)", fontSize: 14, marginBottom: 20 }}>Foto clara de cuerpo entero, de costado si es posible</p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <button onClick={() => camaraRef.current?.click()} style={{
+                padding: "12px 22px", borderRadius: 10, border: "2px solid #bbf7d0",
+                background: "#f0fdf4", color: "#166534", cursor: "pointer", fontSize: 14, fontWeight: 700,
+              }}>
+                📷 Sacar foto
+              </button>
+              <button onClick={() => fileRef.current?.click()} style={{
+                padding: "12px 22px", borderRadius: 10, border: "1.5px solid #e2e8f0",
+                background: "#fff", color: "#374151", cursor: "pointer", fontSize: 14,
+              }}>
+                🖼️ Elegir de galería
+              </button>
+            </div>
+            <p style={{ color: "var(--sub2)", fontSize: 11, marginTop: 12 }}>JPG · PNG · HEIC · Máx 15MB</p>
           </div>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleFoto} />
+          <input ref={fileRef}   type="file" accept="image/*" style={{ display: "none" }} onChange={handleFoto} />
+          <input ref={camaraRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleFoto} />
           <BtnSecondary style={{ width: "100%" }} onClick={sinFoto}>
             Continuar sin foto (estimación básica) →
           </BtnSecondary>

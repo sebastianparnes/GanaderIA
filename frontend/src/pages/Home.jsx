@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
 
-export default function Home({ stockCount }) {
+export default function Home({ stockCount, tieneCampo }) {
   const nav = useNavigate();
   return (
     <div style={{ maxWidth: 700, margin: "0 auto", padding: "clamp(24px,5vw,56px) 16px", textAlign: "center" }}>
-      
+
       <div style={{
         display: "inline-block", padding: "5px 18px", borderRadius: 20,
         border: "1.5px solid #bbf7d0", fontSize: 11,
@@ -22,31 +22,49 @@ export default function Home({ stockCount }) {
         Fotografiá tus animales · Estimación de peso con IA · Proyectá el engorde con datos climáticos reales · Conocé el valor de tu hacienda hoy y a futuro.
       </p>
 
-      <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", marginBottom: 56 }}>
-        <button
-          onClick={() => nav("/analizar")}
-          style={{
-            padding: "16px 32px", borderRadius: 10, background: "#16a34a",
-            color: "#fff", border: "none", fontSize: "clamp(15px,2.5vw,17px)", fontWeight: 700,
-            boxShadow: "0 2px 8px rgba(22,163,74,0.35)", cursor: "pointer",
-            width: "clamp(200px,45vw,240px)",
-          }}
-        >
-          📷 Analizar Animal
-        </button>
-        <button
-          onClick={() => nav("/stock")}
-          style={{
-            padding: "15px 28px", borderRadius: 10, background: "#fff",
-            color: "#374151", border: "1.5px solid #d1d5db",
-            fontSize: "clamp(14px,2.5vw,16px)", cursor: "pointer",
-            width: "clamp(160px,40vw,200px)",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
-          }}
-        >
-          📊 Ver Stock ({stockCount})
-        </button>
-      </div>
+      {/* CTA principal: configurar campo si no tiene, o analizar si ya tiene */}
+      {!tieneCampo ? (
+        <div style={{ marginBottom: 28 }}>
+          <button
+            onClick={() => nav("/campo")}
+            style={{
+              padding: "18px 40px", borderRadius: 12, background: "#16a34a",
+              color: "#fff", border: "none", fontSize: "clamp(16px,3vw,19px)", fontWeight: 800,
+              boxShadow: "0 4px 16px rgba(22,163,74,0.4)", cursor: "pointer",
+              width: "100%", maxWidth: 420, display: "block", margin: "0 auto 12px",
+            }}
+          >
+            🌾 Configurá tu Campo para empezar
+          </button>
+          <p style={{ fontSize: 12, color: "#94a3b8" }}>Necesitás configurar tu campo antes de analizar animales</p>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", marginBottom: 28 }}>
+          <button
+            onClick={() => nav("/analizar")}
+            style={{
+              padding: "16px 32px", borderRadius: 10, background: "#16a34a",
+              color: "#fff", border: "none", fontSize: "clamp(15px,2.5vw,17px)", fontWeight: 700,
+              boxShadow: "0 2px 8px rgba(22,163,74,0.35)", cursor: "pointer",
+              width: "clamp(200px,45vw,240px)",
+            }}
+          >
+            📷 Analizar Animal
+          </button>
+          <button
+            onClick={() => nav("/stock")}
+            style={{
+              padding: "15px 28px", borderRadius: 10, background: "#fff",
+              color: "#374151", border: "1.5px solid #d1d5db",
+              fontSize: "clamp(14px,2.5vw,16px)", cursor: "pointer",
+              width: "clamp(160px,40vw,200px)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
+            }}
+          >
+            📊 Ver Stock ({stockCount})
+          </button>
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 14 }}>
         {[
