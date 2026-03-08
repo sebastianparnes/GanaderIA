@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router-dom";
 
-export default function Home({ stockCount, tieneCampo }) {
+export default function Home({ stockCount, campoPrincipal }) {
   const nav = useNavigate();
+  const tieneCampo = !!campoPrincipal;
   return (
     <div style={{ maxWidth: 700, margin: "0 auto", padding: "clamp(24px,5vw,56px) 16px", textAlign: "center" }}>
 
