@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, BtnPrimary, BtnSecondary, Label, ChipGrid, SectionTitle } from "../components/UI.jsx";
 import { TIPOS_PASTURA } from "../utils/constants.js";
 
@@ -152,6 +153,7 @@ function Pronostico({ clima }) {
 
 // ── PÁGINA PRINCIPAL ──────────────────────────────────────────────────────────
 export default function Campo({ campos, onGuardar, user }) {
+  const nav = useNavigate();
   const campo = campos[0] || null; // por ahora un solo campo
 
   const [nombre, setNombre] = useState(campo?.nombre || "");
@@ -260,8 +262,7 @@ export default function Campo({ campos, onGuardar, user }) {
       nombre, lat, lon, direccion, pastura, clima,
       actualizadoEn: new Date().toISOString(),
     });
-    setGuardado(true);
-    setTimeout(() => setGuardado(false), 2500);
+    nav("/");
   }
 
   return (
