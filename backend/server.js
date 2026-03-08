@@ -412,24 +412,6 @@ async function analizarPasturaSatelital(lat, lon, ubicacion) {
   return null;
 }
 
-  const parts = [
-    { inline_data: { mime_type: "image/png", data: imgBase64 } },
-    { text: prompt },
-  ];
-
-  const res = await llamarGemini(parts);
-  if (!res) return null;
-
-  const rawText = res.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  const text = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  console.log(`🛰️ Análisis satelital: ${text.substring(0, 200)}`);
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    try { return JSON.parse(jsonMatch[0]); } catch(e) {}
-  }
-  return null;
-}
-
 // ── CLIMA ─────────────────────────────────────────────────────────────────────
 async function getClima(ubicacion, lat, lon) {
   try {
