@@ -256,6 +256,14 @@ function Resultado({ resultado, tipoAnimal, nombreAnimal, setNombreAnimal, onGua
           sub={clima.lluvia != null ? `${clima.lluvia}mm · ${clima.tempMax || clima.temp}°C máx` : "Sin datos"}
           color={clima.factorClima >= 1.05 ? "#16a34a" : clima.factorClima >= 0.9 ? "#0891b2" : "#d97706"}
         />
+        {r.satelital && (
+          <MetricaCard
+            titulo="🛰️ Pastura Satelital"
+            valor={r.satelital.calidadPastura || "Analizada"}
+            sub={`${r.satelital.coberturaVerde}% cobertura · ${r.satelital.estadoHidrico}`}
+            color="#7c3aed"
+          />
+        )}
       </div>
 
       <Card>
@@ -277,6 +285,17 @@ function Resultado({ resultado, tipoAnimal, nombreAnimal, setNombreAnimal, onGua
             fontSize: 13, color: "var(--texto)",
           }}>
             🌦️ <strong>Efecto climático:</strong> {clima.efectoDesc}
+          </div>
+        )}
+        {r.satelital && (
+          <div style={{
+            marginTop: 10, padding: "12px 14px", borderRadius: 8,
+            background: "#faf5ff", border: "1px solid #e9d5ff", fontSize: 13, color: "#1e293b",
+          }}>
+            🛰️ <strong>Análisis satelital:</strong> {r.satelital.observacionesCampo}
+            {r.satelital.recomendacionesCampo && (
+              <div style={{ marginTop: 6, color: "#64748b" }}>💡 {r.satelital.recomendacionesCampo}</div>
+            )}
           </div>
         )}
       </Card>

@@ -164,6 +164,23 @@ export default function Campo({ campos, onGuardar, user }) {
   const [loadingGeo, setLoadingGeo] = useState(false);
   const [guardado, setGuardado] = useState(false);
   const [busqueda, setBusqueda] = useState("");
+  const [satelital, setSatelital] = useState(null);
+  const [loadingSatelital, setLoadingSatelital] = useState(false);
+
+  const API = import.meta.env.VITE_API_URL || "";
+
+  async function analizarSatelital() {
+    if (!lat || !lon) return;
+    setLoadingSatelital(true); setSatelital(null);
+    try {
+      const r = await fetch(`${API}/api/satelital?lat=${lat}&lon=${lon}&ubicacion=${encodeURIComponent(direccion || nombre)}`);
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setSatelital(d);
+    } catch(e) {
+      console.error("Error satelital:", e);
+    } finally { setLoadingSatelital(false); }
+  }
 
   // Si ya tiene coordenadas, cargar clima
   useEffect(() => {
@@ -297,6 +314,62 @@ export default function Campo({ campos, onGuardar, user }) {
           </p>
         )}
       </Card>
+
+      {/* Análisis Satelital */}
+      {lat && lon && (
+        <Card>
+          <SectionTitle>🛰️ ANÁLISIS SATELITAL DE PASTURAS</SectionTitle>
+          <p style={{ fontSize: 13, color: "#64748b", marginBottom: 16, lineHeight: 1.5 }}>
+            La IA analiza la imagen satelital de tu campo y estima la calidad real de los pastizales, cobertura verde y estado hídrico.
+          </p>
+
+          {!satelital && !loadingSatelital && (
+            <BtnPrimary onClick={analizarSatelital} style={{ fontSize: 14 }}>
+              🛰️ Analizar pasturas desde satélite
+            </BtnPrimary>
+          )}
+
+          {loadingSatelital && (
+            <div style={{ textAlign: "center", padding: "24px 0" }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🛰️</div>
+              <p style={{ fontSize: 13, color: "#64748b" }}>Descargando imagen satelital y analizando pasturas...</p>
+            </div>
+          )}
+
+          {satelital && (
+            <div>
+              {satelital.imgUrl && (
+                <img src={satelital.imgUrl} alt="Vista satelital" style={{ width: "100%", borderRadius: 10, marginBottom: 16, border: "1px solid #e2e8f0" }} />
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 16 }}>
+                {[
+                  { label: "Cobertura verde", valor: `${satelital.coberturaVerde}%`, color: "#16a34a" },
+                  { label: "Estado hídrico",  valor: satelital.estadoHidrico,        color: "#0891b2" },
+                  { label: "Calidad pastura", valor: satelital.calidadPastura,       color: "#7c3aed" },
+                  { label: "Factor engorde",  valor: `${Math.round(satelital.factorPastura * 100)}%`, color: "#d97706" },
+                ].map(m => (
+                  <div key={m.label} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "12px 10px", textAlign: "center", borderTop: `3px solid ${m.color}` }}>
+                    <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{m.label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: m.color }}>{m.valor}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 10, padding: "14px 16px", fontSize: 13, color: "#1e293b", marginBottom: 12 }}>
+                <strong>Tipo de vegetación:</strong> {satelital.tipoVegetacion}<br />
+                <span style={{ color: "#64748b", marginTop: 6, display: "block" }}>{satelital.observacionesCampo}</span>
+              </div>
+              {satelital.recomendacionesCampo && (
+                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#166534" }}>
+                  💡 <strong>Recomendación:</strong> {satelital.recomendacionesCampo}
+                </div>
+              )}
+              <button onClick={analizarSatelital} style={{ marginTop: 12, background: "none", border: "none", color: "#16a34a", cursor: "pointer", fontSize: 12, textDecoration: "underline" }}>
+                ↻ Actualizar análisis
+              </button>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Pronóstico */}
       <Card>

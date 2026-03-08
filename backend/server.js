@@ -276,6 +276,27 @@ async function getPreciosLiniers() {
 }
 
 // ── GEMINI: SOLO peso animal + diferencial regional ───────────────────────────
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function llamarGemini(parts, intento = 0) {
+  const GEMINI_KEY = process.env.GEMINI_API_KEY;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
+  try {
+    return await axios.post(url, {
+      contents: [{ parts }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 3000 },
+    }, { timeout: 45000 });
+  } catch(e) {
+    if (e.response?.status === 429 && intento < 3) {
+      const espera = [20000, 40000, 60000][intento];
+      console.warn(`⏳ Gemini 429 (intento ${intento+1}), esperando ${espera/1000}s...`);
+      await sleep(espera);
+      return llamarGemini(parts, intento + 1);
+    }
+    return null; // después de 3 intentos, devolver null y usar fallback
+  }
+}
+
 async function analizarConIA(tipoAnimal, edadMeses, pastura, ubicacion, base64Image, mediaType, precioLiniers) {
   const GEMINI_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_KEY) throw new Error("GEMINI_API_KEY no configurada");
@@ -301,11 +322,12 @@ Completá este JSON con valores reales (NO uses valores de ejemplo):
   const parts = [{ text: prompt }];
   if (base64Image) parts.unshift({ inline_data: { mime_type: mediaType || "image/jpeg", data: base64Image } });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
-  const res = await axios.post(url, {
-    contents: [{ parts }],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 3000 },
-  }, { timeout: 45000 });
+  const res = await llamarGemini(parts);
+
+  if (!res) {
+    console.warn("⚠️ Gemini no disponible, usando estimación por defecto");
+    return null; // el caller usa fallback
+  }
 
   const rawText = res.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   // Gemini a veces envuelve el JSON en ```json ``` aunque se le pida que no
@@ -329,6 +351,56 @@ Completá este JSON con valores reales (NO uses valores de ejemplo):
     observaciones: "Estimación automática.", recomendaciones: "Subí una foto para mayor precisión.",
     diferencialZona: -300, contextoZona: "Descuento típico por flete desde zona de producción.",
   };
+}
+
+// ── ANÁLISIS SATELITAL DEL CAMPO ──────────────────────────────────────────────
+async function getSatelitalBase64(lat, lon) {
+  const MAPS_KEY = process.env.MAPS_STATIC_KEY;
+  if (!MAPS_KEY) return null;
+  try {
+    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=16&size=640x640&maptype=satellite&key=${MAPS_KEY}`;
+    console.log(`🛰️ Descargando imagen satelital: ${lat},${lon}`);
+    const res = await axios.get(url, { responseType: "arraybuffer", timeout: 10000 });
+    const base64 = Buffer.from(res.data).toString("base64");
+    console.log(`✅ Imagen satelital OK: ${Math.round(base64.length/1024)}KB`);
+    return base64;
+  } catch(e) {
+    console.warn(`⚠️ Maps Static API error: ${e.message}`);
+    return null;
+  }
+}
+
+async function analizarPasturaSatelital(lat, lon, ubicacion) {
+  const imgBase64 = await getSatelitalBase64(lat, lon);
+  if (!imgBase64) return null;
+
+  const prompt = `Sos un ingeniero agrónomo argentino experto en pasturas. Analizá esta imagen satelital del campo ubicado en ${ubicacion} (coordenadas: ${lat}, ${lon}) y respondé SOLO con JSON válido.
+
+Evaluá:
+- Cobertura y densidad del pasto (% de cobertura verde)
+- Estado hídrico aparente (seco/normal/húmedo)
+- Tipo de vegetación visible
+- Calidad estimada para alimentación bovina
+- Factor de ajuste para el engorde (entre 0.5 y 1.3)
+
+{"coberturaVerde":0,"estadoHidrico":"","tipoVegetacion":"","calidadPastura":"","factorPastura":0,"observacionesCampo":"","recomendacionesCampo":""}`;
+
+  const parts = [
+    { inline_data: { mime_type: "image/png", data: imgBase64 } },
+    { text: prompt },
+  ];
+
+  const res = await llamarGemini(parts);
+  if (!res) return null;
+
+  const rawText = res.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  const text = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  console.log(`🛰️ Análisis satelital: ${text.substring(0, 200)}`);
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try { return JSON.parse(jsonMatch[0]); } catch(e) {}
+  }
+  return null;
 }
 
 // ── CLIMA ─────────────────────────────────────────────────────────────────────
@@ -469,22 +541,36 @@ app.post("/api/analizar", upload.single("foto"), async (req, res) => {
     const liniersData = await getPreciosLiniers();
     const precioLiniers = liniersData.precios[tipoAnimal] || PRECIOS_FALLBACK[tipoAnimal] || 4500;
 
-    // 2. Clima + IA en paralelo
-    const [climaData, iaResultRaw] = await Promise.all([
+    // 2. Clima + IA + satélite en paralelo
+    const latNum = lat && !isNaN(parseFloat(lat)) ? parseFloat(lat) : null;
+    const lonNum = lon && !isNaN(parseFloat(lon)) ? parseFloat(lon) : null;
+
+    const [climaData, iaResultRaw, satelitalData] = await Promise.all([
       getClima(ubicacion, lat, lon),
       analizarConIA(tipoAnimal, parseInt(edadMeses), pastura, ubicacion, base64Image, mediaType, precioLiniers),
+      (latNum && lonNum) ? analizarPasturaSatelital(latNum, lonNum, ubicacion) : Promise.resolve(null),
     ]);
+
+    // Si tenemos análisis satelital, ajustar el factor de pastura
+    const factorPasturaFinal = satelitalData?.factorPastura
+      ? (climaData.factorClima * 0.6 + satelitalData.factorPastura * 0.4) // blend clima + satélite
+      : climaData.factorClima;
+
+    console.log(`🛰️ Satélite: ${satelitalData ? `factor=${satelitalData.factorPastura} cobertura=${satelitalData.coberturaVerde}%` : "no disponible"}`);
+
 
     // 3. Asegurar que iaResult tenga todos los campos necesarios
     const baseKgFallback = BASE_KG[tipoAnimal] || 250;
+    const iaFallback = !iaResultRaw;
     const iaResult = {
       pesoEstimadoKg:    iaResultRaw?.pesoEstimadoKg    || baseKgFallback,
       condicionCorporal: iaResultRaw?.condicionCorporal || 5,
-      confianza:         iaResultRaw?.confianza         || "baja",
-      observaciones:     iaResultRaw?.observaciones     || "Estimación por categoría y edad.",
-      recomendaciones:   iaResultRaw?.recomendaciones   || "Subí una foto clara para mayor precisión.",
+      confianza:         iaFallback ? "estimación automática" : (iaResultRaw?.confianza || "baja"),
+      observaciones:     iaResultRaw?.observaciones     || "IA temporalmente no disponible. Peso estimado por categoría y edad.",
+      recomendaciones:   iaResultRaw?.recomendaciones   || "Intentá analizar de nuevo en unos minutos para obtener la estimación con IA.",
       diferencialZona:   iaResultRaw?.diferencialZona   ?? -300,
       contextoZona:      iaResultRaw?.contextoZona      || "Descuento estimado por flete.",
+      iaDisponible:      !iaFallback,
     };
     console.log(`📊 IA result: peso=${iaResult.pesoEstimadoKg}kg confianza=${iaResult.confianza} diferencial=${iaResult.diferencialZona}`);
 
@@ -492,9 +578,9 @@ app.post("/api/analizar", upload.single("foto"), async (req, res) => {
     const diferencial  = iaResult.diferencialZona;
     const precioZona   = Math.max(1000, precioLiniers + diferencial);
 
-    // 4. Proyecciones con ambos precios
+    // 4. Proyecciones con factor blended (clima + satélite)
     const proyecciones = calcularProyecciones(
-      iaResult.pesoEstimadoKg, pastura, climaData.factorClima, precioLiniers, precioZona
+      iaResult.pesoEstimadoKg, pastura, factorPasturaFinal, precioLiniers, precioZona
     );
 
     res.json({
@@ -502,6 +588,7 @@ app.post("/api/analizar", upload.single("foto"), async (req, res) => {
       animal: { tipo: tipoAnimal, edadMeses: parseInt(edadMeses), pastura, ubicacion },
       ia: iaResult,
       clima: climaData,
+      satelital: satelitalData,
       proyecciones,
       precios: {
         liniers: {
@@ -711,6 +798,22 @@ app.get("/api/liniers/historico", async (req, res) => {
     const r = await db.execute("SELECT fecha, data_json FROM precios_historico ORDER BY fecha DESC LIMIT 30");
     const historico = r.rows.map(row => ({ fecha: row.fecha, ...JSON.parse(row.data_json) }));
     res.json({ historico });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ANÁLISIS SATELITAL DIRECTO (para página Mi Campo) ─────────────────────────
+app.get("/api/satelital", async (req, res) => {
+  try {
+    const { lat, lon, ubicacion } = req.query;
+    if (!lat || !lon) return res.status(400).json({ error: "lat/lon requeridos" });
+    const resultado = await analizarPasturaSatelital(parseFloat(lat), parseFloat(lon), ubicacion || `${lat},${lon}`);
+    if (!resultado) return res.status(503).json({ error: "Análisis satelital no disponible" });
+    // Incluir URL de la imagen para mostrar en el frontend
+    const MAPS_KEY = process.env.MAPS_STATIC_KEY;
+    const imgUrl = MAPS_KEY
+      ? `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=16&size=640x640&maptype=satellite&key=${MAPS_KEY}`
+      : null;
+    res.json({ ...resultado, imgUrl });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
