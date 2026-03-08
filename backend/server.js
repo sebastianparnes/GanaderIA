@@ -297,7 +297,7 @@ async function llamarGemini(parts, intento = 0) {
   }
 }
 
-async function analizarConIA(tipoAnimal, edadMeses, pastura, ubicacion, base64Image, mediaType, precioLiniers) {
+async function analizarConIA(tipoAnimal, edadMeses, pastura, ubicacion, base64Image, mediaType, precioLiniers, satelitalData = null) {
   const GEMINI_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_KEY) throw new Error("GEMINI_API_KEY no configurada");
 
@@ -305,18 +305,26 @@ async function analizarConIA(tipoAnimal, edadMeses, pastura, ubicacion, base64Im
   const pasturaLabel = PASTURA_LABELS[pastura]  || pastura;
   const baseKg       = BASE_KG[tipoAnimal]      || 250;
 
+  // Contexto satelital para enriquecer el prompt
+  const satelitalCtx = satelitalData
+    ? `Análisis satelital del campo: cobertura verde ${satelitalData.coberturaVerde}%, estado hídrico ${satelitalData.estadoHidrico}, calidad de pastura ${satelitalData.calidadPastura}, factor de engorde satelital ${satelitalData.factorPastura}.`
+    : "";
+
   const prompt = `Sos un veterinario ganadero argentino experto. Respondé SOLO con JSON válido, sin texto adicional ni markdown.
 
-${base64Image ? `Mirá la foto y estimá el peso real del animal basándote en su conformación corporal, tamaño, desarrollo muscular y estado de carnes.` : `Estimá el peso según la categoría, edad y alimentación.`}
+${base64Image ? `Mirá la foto y estimá el peso real del animal.` : `Estimá el peso según categoría, edad y condiciones reales del campo.`}
 
 Categoría: ${tipoLabel}
 Edad: ${edadMeses} meses
-Alimentación: ${pasturaLabel}
+Tipo de alimentación declarado: ${pasturaLabel}
 Zona: ${ubicacion}
+${satelitalCtx}
 Precio Liniers referencia: $${precioLiniers}/kg
-Diferencial zona (Entre Ríos/NEA tienen descuento por flete vs Liniers): estimá entre -200 y -600
+Diferencial zona (Entre Ríos/NEA descuento por flete): estimá entre -200 y -600
 
-Completá este JSON con valores reales (NO uses valores de ejemplo):
+IMPORTANTE: El peso estimado debe reflejar las condiciones reales del campo. Un animal en campo con pastura excelente (cobertura >80%, bien irrigado) puede pesar 10-15% más que uno en campo degradado para la misma edad y categoría.
+
+Completá este JSON con valores reales:
 {"pesoEstimadoKg":0,"condicionCorporal":0,"confianza":"","observaciones":"","recomendaciones":"","diferencialZona":0,"contextoZona":""}`;
 
   const parts = [{ text: prompt }];
@@ -490,12 +498,15 @@ async function getClima(ubicacion, lat, lon) {
 }
 
 // ── PROYECCIONES ──────────────────────────────────────────────────────────────
-function calcularProyecciones(peso, pastura, factorClima, precioLiniers, precioZona) {
+function calcularProyecciones(peso, pastura, factorClima, precioLiniers, precioZona, factorSatelital = null) {
   const fp = FACTOR_PASTURA[pastura] || 1.0;
-  const ganDiaria = parseFloat((0.7 * fp * factorClima).toFixed(2));
+  // Si hay análisis satelital, reemplaza el factor de pastura declarado por el usuario
+  // (lo que realmente se ve desde el satélite > lo que el usuario dice que tiene)
+  const fpFinal = factorSatelital ? (fp * 0.4 + factorSatelital * 0.6) : fp;
+  const ganDiaria = parseFloat((0.7 * fpFinal * factorClima).toFixed(2));
   const peso3m = Math.round(peso + ganDiaria * 90);
   const peso6m = Math.round(peso + ganDiaria * 180);
-  const tend = 0.02; // tendencia mensual neutra
+  const tend = 0.02;
 
   return {
     peso3m, peso6m, ganDiaria,
@@ -550,22 +561,26 @@ app.post("/api/analizar", upload.single("foto"), async (req, res) => {
     const liniersData = await getPreciosLiniers();
     const precioLiniers = liniersData.precios[tipoAnimal] || PRECIOS_FALLBACK[tipoAnimal] || 4500;
 
-    // 2. Clima + IA + satélite en paralelo
+    // 2. Clima + satélite en paralelo (rápidos), después IA con contexto completo
     const latNum = lat && !isNaN(parseFloat(lat)) ? parseFloat(lat) : null;
     const lonNum = lon && !isNaN(parseFloat(lon)) ? parseFloat(lon) : null;
 
-    const [climaData, iaResultRaw, satelitalData] = await Promise.all([
+    const [climaData, satelitalData] = await Promise.all([
       getClima(ubicacion, lat, lon),
-      analizarConIA(tipoAnimal, parseInt(edadMeses), pastura, ubicacion, base64Image, mediaType, precioLiniers),
       (latNum && lonNum) ? analizarPasturaSatelital(latNum, lonNum, ubicacion) : Promise.resolve(null),
     ]);
 
-    // Si tenemos análisis satelital, ajustar el factor de pastura
-    const factorPasturaFinal = satelitalData?.factorPastura
-      ? (climaData.factorClima * 0.6 + satelitalData.factorPastura * 0.4) // blend clima + satélite
-      : climaData.factorClima;
+    // 3. IA con contexto satelital ya disponible — así Gemini ajusta el peso según el campo real
+    const iaResultRaw = await analizarConIA(
+      tipoAnimal, parseInt(edadMeses), pastura, ubicacion,
+      base64Image, mediaType, precioLiniers, satelitalData
+    );
 
-    console.log(`🛰️ Satélite: ${satelitalData ? `factor=${satelitalData.factorPastura} cobertura=${satelitalData.coberturaVerde}%` : "no disponible"}`);
+    // Factor satelital para proyecciones
+    const factorSatelital = satelitalData?.factorPastura || null;
+    const factorClimaFinal = climaData.factorClima;
+
+    console.log(`🛰️ Satélite: ${satelitalData ? `factor=${factorSatelital} cobertura=${satelitalData.coberturaVerde}%` : "no disponible"}`);
 
 
     // 3. Asegurar que iaResult tenga todos los campos necesarios
@@ -587,9 +602,9 @@ app.post("/api/analizar", upload.single("foto"), async (req, res) => {
     const diferencial  = iaResult.diferencialZona;
     const precioZona   = Math.max(1000, precioLiniers + diferencial);
 
-    // 4. Proyecciones con factor blended (clima + satélite)
+    // 4. Proyecciones con factor satelital real del campo
     const proyecciones = calcularProyecciones(
-      iaResult.pesoEstimadoKg, pastura, factorPasturaFinal, precioLiniers, precioZona
+      iaResult.pesoEstimadoKg, pastura, factorClimaFinal, precioLiniers, precioZona, factorSatelital
     );
 
     res.json({
