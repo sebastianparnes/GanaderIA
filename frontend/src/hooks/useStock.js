@@ -71,5 +71,25 @@ export function useStock(user) {
     } catch(e) { console.error("Error asignando lote:", e); }
   }
 
-  return { stock, agregarAnimal, eliminarAnimal, asignarLote, totales, loading };
+  async function actualizarAnimal(id, nuevoAnalisis) {
+    try {
+      const r = await fetch(`${API}/api/stock/actualizar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, usuario_id: user.id, ...nuevoAnalisis }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setStock(prev => prev.map(a => a.id === id
+          ? { ...a, ia: nuevoAnalisis.ia, proyecciones: nuevoAnalisis.proyecciones,
+              clima: nuevoAnalisis.clima, satelital: nuevoAnalisis.satelital,
+              historial: [...(a.historial || []), d.snapshot] }
+          : a
+        ));
+      }
+      return d;
+    } catch(e) { console.error("Error actualizando animal:", e); }
+  }
+
+  return { stock, agregarAnimal, eliminarAnimal, asignarLote, actualizarAnimal, totales, loading };
 }

@@ -16,7 +16,7 @@ import { useAuth } from "./hooks/useAuth.js";
 
 export default function App() {
   const { user, login, logout, loading: authLoading, error: authError } = useAuth();
-  const { stock, agregarAnimal, eliminarAnimal, asignarLote, totales } = useStock(user);
+  const { stock, agregarAnimal, eliminarAnimal, asignarLote, actualizarAnimal, totales } = useStock(user);
   const { notif, mostrar } = useNotif();
   const { campos, guardarCampo, campoPrincipal } = useCampos(user);
 
@@ -31,7 +31,7 @@ export default function App() {
       <Routes>
         <Route path="/"         element={<Home stockCount={stock.length} campoPrincipal={campoPrincipal} />} />
         <Route path="/analizar" element={<Analizar onGuardar={agregarAnimal} notif={mostrar} campoPrincipal={campoPrincipal} />} />
-        <Route path="/stock"    element={<Stock stock={stock} onEliminar={eliminarAnimal} totales={totales} />} />
+        <Route path="/stock"    element={<Stock stock={stock} onEliminar={eliminarAnimal} onActualizar={actualizarAnimal} totales={totales} campoPrincipal={campoPrincipal} user={user} />} />
         <Route path="/campo"    element={<Campo campos={campos} onGuardar={guardarCampo} user={user} />} />
         <Route path="/clima"    element={<Clima campoPrincipal={campoPrincipal} />} />
         <Route path="/lotes"    element={<Lotes campoPrincipal={campoPrincipal} user={user} stock={stock} onAsignarLote={asignarLote} />} />

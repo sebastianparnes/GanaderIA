@@ -726,11 +726,62 @@ app.post("/api/stock", async (req, res) => {
   try {
     const { usuario_id, campo_id, nombre, ...data } = req.body;
     if (!usuario_id || !nombre) return res.status(400).json({ error: "Faltan datos" });
+    // Asegurarse que el primer análisis quede en el historial
+    const ahora = new Date().toISOString();
+    const snapshot = {
+      fecha: ahora,
+      pesoEstimadoKg: data.ia?.pesoEstimadoKg,
+      condicionCorporal: data.ia?.condicionCorporal,
+      observaciones: data.ia?.observaciones,
+      proyecciones: data.proyecciones,
+      confianza: data.ia?.confianza,
+    };
+    const dataConHistorial = { ...data, historial: [snapshot] };
     const ins = await db.execute({
       sql: "INSERT INTO stock (usuario_id, campo_id, nombre, data_json) VALUES (?,?,?,?)",
-      args: [usuario_id, campo_id||null, nombre, JSON.stringify(data)],
+      args: [usuario_id, campo_id||null, nombre, JSON.stringify(dataConHistorial)],
     });
     res.json({ ok: true, id: Number(ins.lastInsertRowid) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Actualizar análisis de un animal existente (nueva foto)
+app.post("/api/stock/actualizar", async (req, res) => {
+  try {
+    const { id, usuario_id, ia, proyecciones, clima, satelital } = req.body;
+    if (!id || !usuario_id) return res.status(400).json({ error: "Faltan datos" });
+
+    // Traer el animal existente
+    const r = await db.execute({ sql: "SELECT * FROM stock WHERE id=? AND usuario_id=?", args: [id, usuario_id] });
+    if (!r.rows.length) return res.status(404).json({ error: "Animal no encontrado" });
+
+    const existing = JSON.parse(r.rows[0].data_json);
+    const historialAnterior = existing.historial || [];
+
+    // Nuevo snapshot
+    const snapshot = {
+      fecha: new Date().toISOString(),
+      pesoEstimadoKg: ia?.pesoEstimadoKg,
+      condicionCorporal: ia?.condicionCorporal,
+      observaciones: ia?.observaciones,
+      proyecciones,
+      confianza: ia?.confianza,
+    };
+
+    const dataActualizado = {
+      ...existing,
+      ia,
+      proyecciones,
+      clima,
+      satelital,
+      historial: [...historialAnterior, snapshot],
+    };
+
+    await db.execute({
+      sql: "UPDATE stock SET data_json=?, guardado_en=datetime('now') WHERE id=? AND usuario_id=?",
+      args: [JSON.stringify(dataActualizado), id, usuario_id],
+    });
+    res.json({ ok: true, snapshot });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
