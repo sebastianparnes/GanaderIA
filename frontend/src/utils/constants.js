@@ -23,8 +23,3 @@ export const CONFIANZA_COLOR = {
   media: "#d97706",
   baja:  "#dc2626",
 };
-
-export const TIPO_EMOJI = {
-  ternero: "🐄", ternera: "🐄", novillo: "🐂",
-  novillito: "🐂", vaquillona: "🐄", vaca: "🐄", toro: "🐃",
-};

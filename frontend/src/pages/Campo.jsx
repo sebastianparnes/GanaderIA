@@ -1,93 +1,91 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, BtnPrimary, BtnSecondary, Label, ChipGrid, SectionTitle } from "../components/UI.jsx";
+import {
+  MapPin, Search, Satellite, Save, RefreshCw, CalendarDays, ClipboardList, Droplets, AlertTriangle, Leaf, Lightbulb,
+} from "lucide-react";
+import { Card, BtnPrimary, BtnSecondary, Label, ChipGrid, SectionTitle, PageHeader, Aviso, MetricaCard } from "../components/UI.jsx";
 import { TIPOS_PASTURA } from "../utils/constants.js";
+import { wxInfo, fmtDia } from "../utils/clima.js";
+
+const API = import.meta.env.VITE_API_URL || "";
 
 // ── HELPERS CLIMA ─────────────────────────────────────────────────────────────
 async function fetchClima(lat, lon) {
-  const res = await fetch(
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,weathercode&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=14`
-  );
-  return res.json();
+  const res = await fetch(`${API}/api/clima?lat=${lat}&lon=${lon}`);
+  const data = await res.json();
+  if (!data.daily?.time?.length) throw new Error(data.error || "Sin pronóstico");
+  return data;
 }
 
-const WX_ICONS = {
-  0:"☀️", 1:"🌤️", 2:"⛅", 3:"☁️",
-  45:"🌫️", 48:"🌫️",
-  51:"🌦️", 53:"🌦️", 55:"🌧️",
-  61:"🌧️", 63:"🌧️", 65:"🌧️",
-  71:"🌨️", 73:"🌨️", 75:"❄️",
-  80:"🌦️", 81:"🌧️", 82:"⛈️",
-  95:"⛈️", 96:"⛈️", 99:"⛈️",
-};
-
-function wxIcon(code) { return WX_ICONS[code] || "🌡️"; }
-
-function formatFechaDia(iso) {
-  const d = new Date(iso + "T12:00:00");
-  return d.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" });
+// ── LEAFLET ───────────────────────────────────────────────────────────────────
+// Se carga una sola vez aunque el componente se monte varias veces
+let leafletPromise = null;
+function cargarLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  if (!leafletPromise) {
+    leafletPromise = new Promise((resolve, reject) => {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.onload = () => resolve(window.L);
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+  return leafletPromise;
 }
+
+const PIN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="#16a34a" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35))"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3" fill="#fff"/></svg>`;
 
 // ── COMPONENTE MAPA ───────────────────────────────────────────────────────────
 function MapaPicker({ lat, lon, onSelect }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+  // Última ubicación conocida: el mapa puede terminar de cargar después de que llegue el campo
+  const posRef = useRef({ lat, lon });
+  posRef.current = { lat, lon };
 
+  function ponerMarcador(L, la, lo) {
+    const map = mapInstanceRef.current;
+    if (markerRef.current) {
+      markerRef.current.setLatLng([la, lo]);
+      return;
+    }
+    const icon = L.divIcon({ html: PIN_SVG, iconSize: [34, 34], iconAnchor: [17, 32], className: "" });
+    markerRef.current = L.marker([la, lo], { icon, draggable: true }).addTo(map);
+    markerRef.current.on("dragend", (e) => {
+      const pos = e.target.getLatLng();
+      onSelectRef.current(pos.lat, pos.lng);
+    });
+  }
+
+  // Crear el mapa
   useEffect(() => {
-    // Cargar Leaflet dinámicamente
-    if (mapInstanceRef.current) return;
-
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-    document.head.appendChild(link);
-
-    const script = document.createElement("script");
-    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-    script.onload = () => {
-      const L = window.L;
-      const initLat = lat || -32.5;
-      const initLon = lon || -60.0;
-
-      const map = L.map(mapRef.current, { zoomControl: true }).setView([initLat, initLon], lat ? 13 : 6);
+    let cancelado = false;
+    cargarLeaflet().then((L) => {
+      if (cancelado || mapInstanceRef.current || !mapRef.current) return;
+      const { lat: la, lon: lo } = posRef.current;
+      const map = L.map(mapRef.current, { zoomControl: true }).setView([la || -32.5, lo || -60.0], la ? 13 : 6);
       mapInstanceRef.current = map;
-
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "© OpenStreetMap",
         maxZoom: 19,
       }).addTo(map);
-
-      const icon = L.divIcon({
-        html: `<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))">📍</div>`,
-        iconSize: [28, 28], iconAnchor: [14, 28], className: "",
-      });
-
-      if (lat && lon) {
-        markerRef.current = L.marker([lat, lon], { icon, draggable: true }).addTo(map);
-        markerRef.current.on("dragend", (e) => {
-          const pos = e.target.getLatLng();
-          onSelect(pos.lat, pos.lng);
-        });
-      }
-
+      if (la && lo) ponerMarcador(L, la, lo);
       map.on("click", (e) => {
-        const { lat: la, lng: lo } = e.latlng;
-        if (markerRef.current) {
-          markerRef.current.setLatLng([la, lo]);
-        } else {
-          markerRef.current = L.marker([la, lo], { icon, draggable: true }).addTo(map);
-          markerRef.current.on("dragend", (ev) => {
-            const pos = ev.target.getLatLng();
-            onSelect(pos.lat, pos.lng);
-          });
-        }
-        onSelect(la, lo);
+        ponerMarcador(L, e.latlng.lat, e.latlng.lng);
+        onSelectRef.current(e.latlng.lat, e.latlng.lng);
       });
-    };
-    document.head.appendChild(script);
+    }).catch(() => {});
 
     return () => {
+      cancelado = true;
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -96,13 +94,24 @@ function MapaPicker({ lat, lon, onSelect }) {
     };
   }, []);
 
+  // Mover el mapa cuando la ubicación cambia desde afuera (buscador o campo cargado)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !lat || !lon || !window.L) return;
+    ponerMarcador(window.L, lat, lon);
+    const centro = map.getCenter();
+    if (Math.abs(centro.lat - lat) > 0.01 || Math.abs(centro.lng - lon) > 0.01) {
+      map.setView([lat, lon], Math.max(map.getZoom(), 13));
+    }
+  }, [lat, lon]);
+
   return (
     <div
       ref={mapRef}
       style={{
         width: "100%", height: 320, borderRadius: 12,
         border: "1px solid var(--borde)", overflow: "hidden",
-        background: "#ffffff",
+        background: "var(--bg2)", position: "relative", zIndex: 0,
       }}
     />
   );
@@ -110,43 +119,34 @@ function MapaPicker({ lat, lon, onSelect }) {
 
 // ── PRONÓSTICO ────────────────────────────────────────────────────────────────
 function Pronostico({ clima }) {
-  if (!clima) return null;
   const { daily } = clima;
-
   return (
     <div>
-      <SectionTitle>🌦️ Pronóstico 14 días</SectionTitle>
-      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
-        {daily.time.map((fecha, i) => (
-          <div
-            key={fecha}
-            style={{
-              minWidth: 80, padding: "12px 8px", borderRadius: 10, textAlign: "center",
-              border: "1px solid var(--borde)", background: "#f8fafc",
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ fontSize: 10, color: "var(--sub)", fontFamily: "var(--mono)", marginBottom: 6 }}>
-              {formatFechaDia(fecha)}
-            </div>
-            <div style={{ fontSize: 24, marginBottom: 6 }}>{wxIcon(daily.weathercode[i])}</div>
-            <div style={{ fontSize: 12, fontFamily: "var(--mono)", color: "#0f172a", fontWeight: 700 }}>
-              {Math.round(daily.temperature_2m_max[i])}°
-            </div>
-            <div style={{ fontSize: 11, color: "var(--sub)", fontFamily: "var(--mono)" }}>
-              {Math.round(daily.temperature_2m_min[i])}°
-            </div>
-            {daily.precipitation_sum[i] > 0 && (
-              <div style={{ fontSize: 10, color: "#0891b2", fontFamily: "var(--mono)", marginTop: 4 }}>
-                {Math.round(daily.precipitation_sum[i])}mm
+      <SectionTitle icon={CalendarDays}>Pronóstico {daily.time.length} días</SectionTitle>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6 }}>
+        {daily.time.map((fecha, i) => {
+          const wx = wxInfo(daily.weathercode[i]);
+          const Icono = wx.icon;
+          return (
+            <div key={fecha} title={wx.txt} style={{
+              minWidth: 70, padding: "10px 6px", borderRadius: 10, textAlign: "center",
+              border: "1px solid var(--borde)", background: "#fff", flexShrink: 0,
+            }}>
+              <div style={{ fontSize: 12, color: "var(--sub)", marginBottom: 6, textTransform: "capitalize" }}>
+                {i === 0 ? "Hoy" : fmtDia(fecha)}
               </div>
-            )}
-          </div>
-        ))}
+              <Icono size={22} color={wx.color} style={{ marginBottom: 4 }} />
+              <div className="num" style={{ fontSize: 14, fontWeight: 700 }}>{Math.round(daily.temperature_2m_max[i])}°</div>
+              <div className="num" style={{ fontSize: 12, color: "var(--sub)" }}>{Math.round(daily.temperature_2m_min[i])}°</div>
+              {daily.precipitation_sum[i] > 0.5 && (
+                <div className="num" style={{ fontSize: 11, color: "#0369a1", fontWeight: 600, marginTop: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                  <Droplets size={10} />{Math.round(daily.precipitation_sum[i])}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      <p style={{ fontSize: 11, color: "var(--sub2)", fontFamily: "var(--mono)", marginTop: 8 }}>
-        Fuente: Open-Meteo · Datos gratuitos
-      </p>
     </div>
   );
 }
@@ -161,17 +161,27 @@ export default function Campo({ campos, onGuardar, user }) {
   const [lon, setLon] = useState(campo?.lon || null);
   const [direccion, setDireccion] = useState(campo?.direccion || "");
   const [pastura, setPastura] = useState(campo?.pastura || "");
-  const [clima, setClima] = useState(campo?.clima || null);
+  const [clima, setClima] = useState(campo?.clima?.daily ? campo.clima : null);
   const [loadingClima, setLoadingClima] = useState(false);
   const [loadingGeo, setLoadingGeo] = useState(false);
-  const [guardado, setGuardado] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
   const [busqueda, setBusqueda] = useState("");
   const [satelital, setSatelital]           = useState(null);
   const [satelitalImg, setSatelitalImg]     = useState(null);
   const [loadingSatelital, setLoadingSatelital] = useState(false);
   const [loadingAnalisis, setLoadingAnalisis]   = useState(false);
 
-  const API = import.meta.env.VITE_API_URL || "";
+  // Si el campo llega después del primer render (ej: recargando /campo), completar el formulario
+  useEffect(() => {
+    if (!campo) return;
+    setNombre(campo.nombre || "");
+    setLat(campo.lat || null);
+    setLon(campo.lon || null);
+    setDireccion(campo.direccion || "");
+    setPastura(campo.pastura || "");
+    if (campo.lat && campo.lon) cargarClima(campo.lat, campo.lon);
+  }, [campo?.id]);
 
   async function analizarSatelital() {
     if (!lat || !lon) return;
@@ -197,16 +207,10 @@ export default function Campo({ campos, onGuardar, user }) {
     finally { setLoadingAnalisis(false); }
   }
 
-  // Si ya tiene coordenadas, cargar clima
-  useEffect(() => {
-    if (lat && lon && !clima) cargarClima(lat, lon);
-  }, []);
-
   async function cargarClima(la, lo) {
     setLoadingClima(true);
     try {
-      const data = await fetchClima(la, lo);
-      setClima(data);
+      setClima(await fetchClima(la, lo));
     } catch (e) {
       console.error("Error clima:", e);
     } finally {
@@ -216,7 +220,7 @@ export default function Campo({ campos, onGuardar, user }) {
 
   async function buscarUbicacion() {
     if (!busqueda.trim()) return;
-    setLoadingGeo(true);
+    setLoadingGeo(true); setError("");
     try {
       const res = await fetch(
         `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(busqueda)}&count=5&language=es&format=json`
@@ -226,11 +230,13 @@ export default function Campo({ campos, onGuardar, user }) {
         const r = data.results[0];
         setLat(r.latitude);
         setLon(r.longitude);
-        setDireccion(`${r.name}, ${r.admin1 || ""}, ${r.country || ""}`);
+        setDireccion([r.name, r.admin1, r.country].filter(Boolean).join(", "));
         await cargarClima(r.latitude, r.longitude);
       } else {
-        alert("No se encontró la ubicación. Probá con otro nombre o hacé clic en el mapa.");
+        setError("No encontramos esa localidad. Probá con otro nombre o tocá el mapa.");
       }
+    } catch {
+      setError("No se pudo buscar la ubicación. Probá tocando el mapa.");
     } finally {
       setLoadingGeo(false);
     }
@@ -253,78 +259,76 @@ export default function Campo({ campos, onGuardar, user }) {
     cargarClima(la, lo);
   }
 
-  function guardar() {
-    if (!nombre.trim()) { alert("Poné un nombre al campo"); return; }
-    if (!lat || !lon)   { alert("Seleccioná la ubicación en el mapa"); return; }
-    if (!pastura)       { alert("Seleccioná el tipo de pastura"); return; }
-    onGuardar({
+  async function guardar() {
+    if (!nombre.trim()) { setError("Poné un nombre al campo."); return; }
+    if (!pastura)       { setError("Elegí el tipo de pastura principal."); return; }
+    if (!lat || !lon)   { setError("Marcá la ubicación del campo en el mapa."); return; }
+    setError(""); setGuardando(true);
+    const ok = await onGuardar({
       id: campo?.id || null,
-      nombre, lat, lon, direccion, pastura, clima,
+      nombre: nombre.trim(), lat, lon, direccion, pastura, clima,
       actualizadoEn: new Date().toISOString(),
     });
-    nav("/");
+    setGuardando(false);
+    if (ok) nav("/");
+    else setError("No se pudo guardar el campo. Probá de nuevo.");
   }
 
   return (
-    <div style={{ maxWidth: 780, margin: "0 auto", padding: "32px 20px" }}>
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "var(--verde)", fontFamily: "var(--mono)", marginBottom: 6 }}>
-          CONFIGURACIÓN
-        </div>
-        <h2 style={{ fontSize: 26, color: "#0f172a", marginBottom: 6 }}>🌾 Mi Campo</h2>
-        <p style={{ fontSize: 13, color: "var(--sub)", fontFamily: "var(--mono)" }}>
-          Configurá la ubicación y pastura de tu campo. Estos datos se usan en todos los análisis.
-        </p>
-      </div>
+    <div className="page page-narrow">
+      <PageHeader
+        icon={MapPin}
+        titulo="Mi campo"
+        sub="Ubicación y pastura. Se usan en todos los análisis."
+      />
 
       {/* Nombre */}
       <Card>
-        <SectionTitle>📋 DATOS DEL CAMPO</SectionTitle>
+        <SectionTitle icon={ClipboardList}>Datos del campo</SectionTitle>
         <Label>Nombre del campo</Label>
         <input
           value={nombre}
           onChange={(e) => setNombre(e.target.value)}
-          placeholder="Ej: La Esperanza, El Trebol..."
-          style={{ width: "100%", padding: "11px 14px", fontSize: 15, marginBottom: 18, borderRadius: 8 }}
+          placeholder="Ej: La Esperanza, El Trébol..."
+          style={{ width: "100%", padding: "11px 14px", fontSize: 15, marginBottom: 18 }}
         />
 
-        <Label>Tipo de pastura principal</Label>
+        <Label>Pastura principal</Label>
         <ChipGrid options={TIPOS_PASTURA} value={pastura} onChange={setPastura} />
       </Card>
 
       {/* Ubicación */}
       <Card>
-        <SectionTitle>📍 UBICACIÓN</SectionTitle>
+        <SectionTitle icon={MapPin}>Ubicación</SectionTitle>
 
-        {/* Buscador */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <form onSubmit={(e) => { e.preventDefault(); buscarUbicacion(); }} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && buscarUbicacion()}
-            placeholder="Buscar localidad... ej: Villaguay"
-            style={{ flex: 1, padding: "10px 14px", fontSize: 14, borderRadius: 8 }}
+            placeholder="Buscar localidad, ej: Villaguay"
+            style={{ flex: 1, minWidth: 0, padding: "10px 14px", fontSize: 15 }}
           />
-          <BtnPrimary onClick={buscarUbicacion} style={{ padding: "10px 18px", fontSize: 13 }}>
-            {loadingGeo ? "..." : "🔍 Buscar"}
-          </BtnPrimary>
-        </div>
+          <button type="submit" className="btn btn-primary" disabled={loadingGeo} aria-label="Buscar">
+            {loadingGeo ? <RefreshCw size={18} className="spin" /> : <Search size={18} />}
+            <span className="ocultar-mobile">Buscar</span>
+          </button>
+        </form>
 
-        {direccion && (
-          <p style={{ fontSize: 12, color: "var(--verde)", fontFamily: "var(--mono)", marginBottom: 12 }}>
-            📍 {direccion}
+        {direccion ? (
+          <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--verde-txt)", fontWeight: 600, marginBottom: 10 }}>
+            <MapPin size={15} style={{ flexShrink: 0 }} /> {direccion}
+          </p>
+        ) : (
+          <p style={{ fontSize: 13, color: "var(--sub)", marginBottom: 10 }}>
+            También podés tocar el mapa o arrastrar el marcador.
           </p>
         )}
-
-        <p style={{ fontSize: 11, color: "var(--sub)", fontFamily: "var(--mono)", marginBottom: 10 }}>
-          También podés hacer clic directo en el mapa o arrastrar el marcador 📌
-        </p>
 
         <MapaPicker lat={lat} lon={lon} onSelect={handleMapClick} />
 
         {lat && lon && (
-          <p style={{ fontSize: 11, color: "var(--sub2)", fontFamily: "var(--mono)", marginTop: 8 }}>
-            Coordenadas: {lat.toFixed(5)}, {lon.toFixed(5)}
+          <p className="num" style={{ fontSize: 12, color: "var(--sub2)", marginTop: 8 }}>
+            {lat.toFixed(5)}, {lon.toFixed(5)}
           </p>
         )}
       </Card>
@@ -332,75 +336,57 @@ export default function Campo({ campos, onGuardar, user }) {
       {/* Análisis Satelital */}
       {lat && lon && (
         <Card>
-          <SectionTitle>🛰️ ANÁLISIS SATELITAL DE PASTURAS</SectionTitle>
-          <p style={{ fontSize: 13, color: "#64748b", marginBottom: 16, lineHeight: 1.5 }}>
-            La IA analiza la imagen satelital de tu campo y estima la calidad real de los pastizales, cobertura verde y estado hídrico.
+          <SectionTitle icon={Satellite}>Análisis satelital de pasturas</SectionTitle>
+          <p style={{ fontSize: 14, color: "var(--sub)", marginBottom: 16, lineHeight: 1.5 }}>
+            La IA mira la imagen satelital de tu campo y estima la calidad del pasto, la cobertura verde y el estado hídrico.
           </p>
 
           {!satelitalImg && !loadingSatelital && (
-            <BtnPrimary onClick={analizarSatelital} style={{ fontSize: 14 }}>
-              🛰️ Ver mi campo desde el satélite
-            </BtnPrimary>
+            <BtnSecondary icon={Satellite} onClick={analizarSatelital}>Ver mi campo desde el satélite</BtnSecondary>
           )}
 
           {loadingSatelital && (
-            <div style={{ textAlign: "center", padding: "20px 0", color: "#64748b", fontSize: 13 }}>
-              🛰️ Cargando imagen satelital...
-            </div>
+            <p style={{ textAlign: "center", padding: "16px 0", color: "var(--sub)", fontSize: 14 }}>Cargando imagen satelital...</p>
           )}
 
           {/* Imagen satelital — aparece al toque */}
           {satelitalImg && (
             <div>
               <img src={satelitalImg} alt="Vista satelital del campo" style={{
-                width: "100%", borderRadius: 12, marginBottom: 16,
-                border: "1px solid #e2e8f0",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                width: "100%", borderRadius: 12, marginBottom: 14, border: "1px solid var(--borde)",
               }} />
 
-              {/* Análisis cargando en segundo plano */}
               {loadingAnalisis && (
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "12px 16px", borderRadius: 10,
-                  background: "#f8fafc", border: "1px solid #e2e8f0",
-                  fontSize: 13, color: "#64748b", marginBottom: 12,
-                }}>
-                  <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid #e2e8f0", borderTopColor: "#7c3aed", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
-                  Gemini está analizando la pastura...
-                </div>
+                <Aviso tipo="violeta" style={{ marginBottom: 12, alignItems: "center" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span className="spin" style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid #e9d5ff", borderTopColor: "#7c3aed", flexShrink: 0 }} />
+                    La IA está analizando la pastura...
+                  </span>
+                </Aviso>
               )}
 
-              {/* Resultados del análisis */}
               {satelital && (
                 <div className="fade-up">
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginBottom: 14 }}>
-                    {[
-                      { label: "Cobertura verde", valor: `${satelital.coberturaVerde}%`, color: "#16a34a" },
-                      { label: "Estado hídrico",  valor: satelital.estadoHidrico,        color: "#0891b2" },
-                      { label: "Calidad pastura", valor: satelital.calidadPastura,       color: "#7c3aed" },
-                      { label: "Factor engorde",  valor: `${Math.round((satelital.factorPastura||1) * 100)}%`, color: "#d97706" },
-                    ].map(m => (
-                      <div key={m.label} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "12px 10px", textAlign: "center", borderTop: `3px solid ${m.color}` }}>
-                        <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{m.label}</div>
-                        <div style={{ fontSize: 15, fontWeight: 800, color: m.color }}>{m.valor}</div>
-                      </div>
-                    ))}
+                  <div className="grid-4" style={{ marginBottom: 12 }}>
+                    <MetricaCard titulo="Cobertura verde" valor={`${satelital.coberturaVerde}%`} color="var(--verde-osc)" />
+                    <MetricaCard titulo="Estado hídrico" valor={satelital.estadoHidrico} />
+                    <MetricaCard titulo="Calidad pastura" valor={satelital.calidadPastura} />
+                    <MetricaCard titulo="Factor engorde" valor={`${Math.round((satelital.factorPastura || 1) * 100)}%`} />
                   </div>
-                  <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 10, padding: "14px 16px", fontSize: 13, color: "#1e293b", marginBottom: 10 }}>
-                    <strong>🌿 {satelital.tipoVegetacion}</strong>
-                    <p style={{ color: "#64748b", marginTop: 6, lineHeight: 1.6 }}>{satelital.observacionesCampo}</p>
-                  </div>
+                  <Aviso tipo="violeta" icon={Leaf} style={{ marginBottom: 10 }}>
+                    <strong>{satelital.tipoVegetacion}</strong>
+                    <div style={{ marginTop: 4 }}>{satelital.observacionesCampo}</div>
+                  </Aviso>
                   {satelital.recomendacionesCampo && (
-                    <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#166534" }}>
-                      💡 <strong>Recomendación:</strong> {satelital.recomendacionesCampo}
-                    </div>
+                    <Aviso tipo="ok" icon={Lightbulb}>
+                      <strong>Recomendación:</strong> {satelital.recomendacionesCampo}
+                    </Aviso>
                   )}
                 </div>
               )}
 
-              <button onClick={analizarSatelital} style={{ marginTop: 14, background: "none", border: "none", color: "#7c3aed", cursor: "pointer", fontSize: 12, textDecoration: "underline" }}>
-                ↻ Actualizar análisis
+              <button onClick={analizarSatelital} className="btn btn-ghost btn-sm" style={{ marginTop: 10 }}>
+                <RefreshCw size={14} /> Actualizar análisis
               </button>
             </div>
           )}
@@ -408,30 +394,22 @@ export default function Campo({ campos, onGuardar, user }) {
       )}
 
       {/* Pronóstico */}
-      <Card>
-        {loadingClima ? (
-          <div style={{ textAlign: "center", padding: "32px 0" }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🌦️</div>
-            <p style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--sub)" }}>Cargando pronóstico...</p>
-          </div>
-        ) : clima ? (
-          <Pronostico clima={clima} />
-        ) : (
-          <div style={{ textAlign: "center", padding: "24px 0" }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>🌍</div>
-            <p style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--sub)" }}>
-              Seleccioná la ubicación para ver el pronóstico
-            </p>
-          </div>
-        )}
-      </Card>
+      {(loadingClima || clima) && (
+        <Card>
+          {loadingClima && !clima ? (
+            <p style={{ textAlign: "center", padding: "20px 0", fontSize: 14, color: "var(--sub)" }}>Cargando pronóstico...</p>
+          ) : (
+            <Pronostico clima={clima} />
+          )}
+        </Card>
+      )}
+
+      {error && <Aviso tipo="error" icon={AlertTriangle} style={{ marginBottom: 14 }}>{error}</Aviso>}
 
       {/* Guardar */}
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <BtnPrimary onClick={guardar} style={{ padding: "14px 32px", fontSize: 15 }}>
-          {guardado ? "✅ Guardado!" : "💾 Guardar Campo"}
-        </BtnPrimary>
-      </div>
+      <BtnPrimary icon={Save} tam="lg" className="btn-block" onClick={guardar} disabled={guardando}>
+        {guardando ? "Guardando..." : campo ? "Guardar cambios" : "Guardar campo"}
+      </BtnPrimary>
     </div>
   );
 }

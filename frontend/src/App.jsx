@@ -27,9 +27,9 @@ export default function App() {
   return (
     <>
       <Notif notif={notif} />
-      <Header stockCount={stock.length} tieneCampo={!!campoPrincipal} user={user} onLogout={logout} />
+      <Header stockCount={stock.length} tieneCampo={!!campoPrincipal} campoNombre={campoPrincipal?.nombre} user={user} onLogout={logout} />
       <Routes>
-        <Route path="/"         element={<Home stockCount={stock.length} campoPrincipal={campoPrincipal} />} />
+        <Route path="/"         element={<Home stockCount={stock.length} totales={totales} campoPrincipal={campoPrincipal} user={user} />} />
         <Route path="/analizar" element={<Analizar onGuardar={agregarAnimal} notif={mostrar} campoPrincipal={campoPrincipal} />} />
         <Route path="/stock"    element={<Stock stock={stock} onEliminar={eliminarAnimal} onActualizar={actualizarAnimal} totales={totales} campoPrincipal={campoPrincipal} user={user} />} />
         <Route path="/campo"    element={<Campo campos={campos} onGuardar={guardarCampo} user={user} />} />
