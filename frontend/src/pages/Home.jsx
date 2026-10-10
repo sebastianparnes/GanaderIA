@@ -1,136 +1,105 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Camera, ClipboardList, Layers, Landmark, CloudSun, MapPin, ChevronRight, Settings, Sprout,
+} from "lucide-react";
+import { formatPesos } from "../utils/helpers.js";
+import { getCotizaciones } from "../utils/api.js";
+import { Card, IconTile, MetricaCard } from "../components/UI.jsx";
 
-export default function Home({ stockCount, campoPrincipal }) {
+export default function Home({ stockCount, totales, campoPrincipal, user }) {
   const nav = useNavigate();
   const tieneCampo = !!campoPrincipal;
+  const [novillo, setNovillo] = useState(null);
 
-  const acciones = [
-    {
-      emoji: "📷",
-      label: "Analizar Animal",
-      desc: "Sacá una foto y la IA estima el peso, valor y proyección de engorde",
-      path: "/analizar",
-      color: "#16a34a",
-      bg: "#f0fdf4",
-      border: "#bbf7d0",
-      primary: true,
-    },
-    {
-      emoji: "📋",
-      label: `Ver Stock (${stockCount} animales)`,
-      desc: "Tu hacienda completa con valor actual y proyectado",
-      path: "/stock",
-      color: "#2563eb",
-      bg: "#eff6ff",
-      border: "#bfdbfe",
-    },
-    {
-      emoji: "🗂️",
-      label: "Administrar Lotes y Animales",
-      desc: "Organizá tus animales por lote dentro del campo",
-      path: "/lotes",
-      color: "#7c3aed",
-      bg: "#faf5ff",
-      border: "#e9d5ff",
-    },
-    {
-      emoji: "🌦️",
-      label: "Ver el Clima en tu Campo",
-      desc: `Pronóstico 14 días con efecto real en el engorde${campoPrincipal ? ` · ${campoPrincipal.nombre}` : ""}`,
-      path: "/clima",
-      color: "#0891b2",
-      bg: "#f0f9ff",
-      border: "#bae6fd",
-    },
-    {
-      emoji: "🏛️",
-      label: "Precios Liniers",
-      desc: "Cotizaciones del día por categoría y evolución histórica",
-      path: "/liniers",
-      color: "#d97706",
-      bg: "#fffbeb",
-      border: "#fde68a",
-    },
+  useEffect(() => {
+    getCotizaciones().then(d => setNovillo(d?.precios?.novillo || null)).catch(() => {});
+  }, []);
+
+  const accesos = [
+    { icon: ClipboardList, label: "Hacienda", desc: `${stockCount} ${stockCount === 1 ? "animal" : "animales"}`, path: "/stock", color: "#2563eb", bg: "#eff6ff" },
+    { icon: Layers,        label: "Lotes",    desc: "Organizá por potrero", path: "/lotes",   color: "#7c3aed", bg: "#f5f3ff" },
+    { icon: Landmark,      label: "Liniers",  desc: novillo ? `Novillo $${novillo.toLocaleString("es-AR")}/kg` : "Precios del día", path: "/liniers", color: "#b45309", bg: "#fffbeb" },
+    { icon: CloudSun,      label: "Clima",    desc: "Pronóstico 14 días", path: "/clima",   color: "#0891b2", bg: "#ecfeff" },
   ];
 
   return (
-    <div style={{ maxWidth: 680, margin: "0 auto", padding: "clamp(24px,5vw,48px) 16px" }}>
-
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: 40 }}>
-        <div style={{
-          display: "inline-block", padding: "5px 18px", borderRadius: 20,
-          border: "1.5px solid #bbf7d0", fontSize: 11,
-          letterSpacing: "0.2em", color: "#15803d", background: "#f0fdf4",
-          fontWeight: 700, marginBottom: 20,
-        }}>
-          TECNOLOGÍA GANADERA · IA
-        </div>
-        <h1 style={{ fontSize: "clamp(2rem,6vw,3.2rem)", lineHeight: 1.1, marginBottom: 12, color: "#0f172a", fontFamily: "Georgia, serif" }}>
-          Tu campo,<br />
-          <span style={{ color: "#16a34a" }}>inteligente.</span>
+    <div className="page">
+      {/* Saludo */}
+      <div style={{ marginBottom: 20 }}>
+        <p style={{ fontSize: 14, color: "var(--sub)", fontWeight: 500 }}>Hola, {user?.username}</p>
+        <h1 style={{ fontSize: "clamp(24px,5vw,30px)", fontWeight: 800, marginTop: 2 }}>
+          {tieneCampo ? campoPrincipal.nombre : "Bienvenido a GanaderIA"}
         </h1>
-        {campoPrincipal && (
-          <p style={{ fontSize: 13, color: "#64748b", marginTop: 8 }}>
-            🌾 {campoPrincipal.nombre} · {campoPrincipal.direccion?.split(",")[0]}
+        {tieneCampo && campoPrincipal.direccion && (
+          <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--sub)", marginTop: 4 }}>
+            <MapPin size={15} /> {campoPrincipal.direccion.split(",").slice(0, 2).join(",")}
           </p>
         )}
       </div>
 
-      {/* Sin campo: CTA grande */}
       {!tieneCampo ? (
-        <div style={{ textAlign: "center" }}>
-          <button onClick={() => nav("/campo")} style={{
-            padding: "20px 40px", borderRadius: 14, background: "#16a34a",
-            color: "#fff", border: "none", fontSize: "clamp(17px,3vw,20px)", fontWeight: 800,
-            boxShadow: "0 4px 20px rgba(22,163,74,0.4)", cursor: "pointer",
-            width: "100%", maxWidth: 440, display: "block", margin: "0 auto 12px",
-          }}>
-            🌾 Configurá tu Campo para empezar
-          </button>
-          <p style={{ fontSize: 12, color: "#94a3b8" }}>
-            Necesitás configurar tu campo antes de analizar animales
+        <Card style={{ padding: "28px 24px", textAlign: "center" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+            <IconTile icon={Sprout} size={56} />
+          </div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Empecemos por tu campo</h2>
+          <p style={{ fontSize: 15, color: "var(--sub)", maxWidth: 420, margin: "0 auto 20px" }}>
+            Marcá dónde está y qué pastura tiene. Con eso calculamos clima, engorde y precios de tu zona.
           </p>
-        </div>
-      ) : (
-        /* Con campo: grilla de acciones */
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {acciones.map((a) => (
-            <button key={a.path} onClick={() => nav(a.path)} style={{
-              display: "flex", alignItems: "center", gap: 18,
-              padding: "18px 22px", borderRadius: 14, cursor: "pointer",
-              background: a.primary ? a.color : a.bg,
-              border: a.primary ? "none" : `1.5px solid ${a.border}`,
-              color: a.primary ? "#fff" : "#1e293b",
-              textAlign: "left", width: "100%",
-              boxShadow: a.primary ? "0 4px 16px rgba(22,163,74,0.3)" : "0 1px 4px rgba(0,0,0,0.05)",
-              transition: "transform 0.1s, box-shadow 0.1s",
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = "translateY(-1px)"}
-            onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
-            >
-              <span style={{ fontSize: 32, flexShrink: 0 }}>{a.emoji}</span>
-              <div>
-                <div style={{ fontSize: "clamp(15px,2.5vw,17px)", fontWeight: 700, marginBottom: 3 }}>
-                  {a.label}
-                </div>
-                <div style={{ fontSize: 12, opacity: a.primary ? 0.85 : undefined, color: a.primary ? "#fff" : "#64748b", lineHeight: 1.4 }}>
-                  {a.desc}
-                </div>
-              </div>
-              <span style={{ marginLeft: "auto", fontSize: 18, opacity: 0.5, flexShrink: 0 }}>›</span>
-            </button>
-          ))}
-
-          {/* Editar campo */}
-          <button onClick={() => nav("/campo")} style={{
-            padding: "12px 22px", borderRadius: 10, border: "1px solid #e2e8f0",
-            background: "#fff", color: "#94a3b8", fontSize: 12, cursor: "pointer",
-            textAlign: "center", marginTop: 4,
-          }}>
-            ⚙️ Editar configuración del campo
+          <button className="btn btn-primary btn-lg" onClick={() => nav("/campo")}>
+            <MapPin size={18} /> Configurar mi campo
           </button>
-        </div>
+        </Card>
+      ) : (
+        <>
+          {/* Resumen */}
+          {stockCount > 0 && (
+            <div className="grid-stats" style={{ marginBottom: 14 }}>
+              <MetricaCard titulo="Capital hoy" valor={formatPesos(totales.valorHoy)} color="var(--verde-osc)" />
+              <MetricaCard titulo="Animales" valor={stockCount} />
+              <MetricaCard titulo="Kg en pie" valor={totales.pesoTotal.toLocaleString("es-AR")} />
+            </div>
+          )}
+
+          {/* Acción principal */}
+          <button onClick={() => nav("/analizar")} style={{
+            display: "flex", alignItems: "center", gap: 16, width: "100%", textAlign: "left",
+            padding: "18px 20px", borderRadius: "var(--radius)", border: "none", marginBottom: 14,
+            background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)", color: "#fff",
+            boxShadow: "0 6px 20px rgba(22,163,74,0.3)",
+          }}>
+            <span style={{ width: 52, height: 52, borderRadius: 14, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Camera size={26} />
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 18, fontWeight: 700 }}>Analizar un animal</span>
+              <span style={{ display: "block", fontSize: 14, opacity: 0.9, marginTop: 2 }}>
+                Sacale una foto y la IA estima peso, valor y engorde
+              </span>
+            </span>
+            <ChevronRight size={22} style={{ opacity: 0.8, flexShrink: 0 }} />
+          </button>
+
+          {/* Accesos */}
+          <div className="grid-acciones" style={{ marginBottom: 14 }}>
+            {accesos.map(a => (
+              <button key={a.path} className="card-link" onClick={() => nav(a.path)} style={{ flexDirection: "column", alignItems: "flex-start", gap: 12 }}>
+                <IconTile icon={a.icon} color={a.color} bg={a.bg} size={40} />
+                <span style={{ minWidth: 0, width: "100%" }}>
+                  <span style={{ display: "block", fontSize: 16, fontWeight: 700, color: "var(--texto)" }}>{a.label}</span>
+                  <span className="num" style={{ display: "block", fontSize: 13, color: "var(--sub)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.desc}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <button className="card-link" onClick={() => nav("/campo")} style={{ padding: "12px 16px" }}>
+            <Settings size={18} color="var(--sub)" />
+            <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--texto2)" }}>Configuración del campo</span>
+            <ChevronRight size={18} color="var(--sub2)" />
+          </button>
+        </>
       )}
     </div>
   );

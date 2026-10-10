@@ -65,7 +65,9 @@ async function initDB() {
   ], "write");
   console.log("✅ Turso DB inicializada");
 }
-initDB().catch(e => console.error("❌ DB init error:", e.message));
+initDB()
+  .then(() => runMigrations())
+  .catch(e => console.error("❌ DB init error:", e.message));
 
 // Migraciones opcionales (pueden fallar si ya existen)
 async function runMigrations() {
@@ -76,12 +78,17 @@ async function runMigrations() {
     try { await db.execute(sql); } catch(e) { /* columna ya existe, OK */ }
   }
 }
-runMigrations().catch(() => {});
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: "*", methods: ["GET", "POST", "DELETE"] }));
 app.use(express.json({ limit: "20mb" }));
-app.use("/api/", rateLimit({ windowMs: 15*60*1000, max: 100, message: { error: "Demasiadas solicitudes." } }));
+// Railway pone un proxy adelante: sin esto todos los usuarios comparten la IP del proxy y el mismo límite
+app.set("trust proxy", 1);
+app.use("/api/", rateLimit({ windowMs: 15*60*1000, max: 400, message: { error: "Demasiadas solicitudes." } }));
+// Límite más estricto para lo que consume IA (Gemini)
+const limiteIA = rateLimit({ windowMs: 15*60*1000, max: 30, message: { error: "Demasiados análisis seguidos. Esperá unos minutos." } });
+app.use("/api/analizar", limiteIA);
+app.use("/api/satelital", limiteIA);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -133,51 +140,56 @@ const LINIERS_MAP = {
 // y también:            precios-remates-tv-exportacion-DD-MM-YYYY.html
 // Probamos varios patrones yendo hacia atrás hasta 5 días hábiles
 
+// Número en formato argentino: "4.506,424" → 4506.424 · "$219.215.000,00" → 219215000
+function parseNumeroAR(txt) {
+  const limpio = String(txt).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(limpio);
+  return isNaN(n) ? null : n;
+}
+
 function parseLiniersHtml(html) {
-  // Extraemos las filas de la tabla con regex
-  // Buscamos el patrón: CATEGORIA ... | min | max | ... | $/kg Pond.
-  const precios = {};
+  // Columnas de la tabla del MAG:
+  // Categoría | Mínimo | Máximo | Promedio | Mediana | Cabezas | Importe | Kgs | Kgs prom.
+  // Por categoría sumamos importe y kilos de todas sus filas → precio promedio ponderado $/kg.
+  const acumulado = {};
 
-  // Buscar todas las filas <tr> que contengan categorías ganaderas
   const filas = html.match(/<tr[\s\S]*?<\/tr>/gi) || [];
-
   for (const fila of filas) {
-    // Limpiar tags HTML para obtener texto
-    const texto = fila.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().toUpperCase();
+    const celdas = (fila.match(/<t[dh][^>]*>[\s\S]*?<\/t[dh]>/gi) || [])
+      .map(c => c.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim());
+    if (celdas.length < 8) continue;
 
-    // Buscar categoría en el texto de la fila
-    let categoriaEncontrada = null;
-    for (const cat of Object.keys(LINIERS_MAP)) {
-      if (texto.startsWith(cat) || texto.includes(`| ${cat}`) || texto.includes(`${cat} `)) {
-        categoriaEncontrada = cat;
-        break;
-      }
-    }
-    if (!categoriaEncontrada) continue;
+    const nombre = celdas[0].toUpperCase();
+    const categoria = Object.keys(LINIERS_MAP).find(cat => nombre.startsWith(cat));
+    if (!categoria) continue;
 
-    // Extraer números de la fila (precios con puntos de miles)
-    const nums = texto.match(/\d[\d.]+/g);
-    if (!nums || nums.length < 2) continue;
+    const promedio = parseNumeroAR(celdas[3]);
+    const importe  = parseNumeroAR(celdas[6]);
+    const kilos    = parseNumeroAR(celdas[7]);
+    const tipo = LINIERS_MAP[categoria];
+    const acc = acumulado[tipo] || (acumulado[tipo] = { importe: 0, kilos: 0, promedios: [] });
 
-    // Convertir strings con puntos a números: "8.240" → 8240
-    const valores = nums
-      .map(n => parseInt(n.replace(/\./g, ""), 10))
-      .filter(n => n >= 1000 && n <= 50000); // rango razonable $/kg
-
-    if (valores.length === 0) continue;
-
-    // El precio ponderado suele ser el último o el más frecuente
-    // Tomamos el máximo como referencia de "muy buena clase" (como dice el sitio)
-    const precioRef = Math.max(...valores);
-    const tipoNuestro = LINIERS_MAP[categoriaEncontrada];
-
-    if (tipoNuestro && !precios[tipoNuestro]) {
-      precios[tipoNuestro] = precioRef;
+    if (importe > 0 && kilos > 0) {
+      acc.importe += importe;
+      acc.kilos   += kilos;
+    } else if (promedio) {
+      acc.promedios.push(promedio);
     }
   }
 
+  const precios = {};
+  for (const [tipo, acc] of Object.entries(acumulado)) {
+    const precio = acc.kilos > 0
+      ? acc.importe / acc.kilos
+      : acc.promedios.reduce((a, b) => a + b, 0) / (acc.promedios.length || 1);
+    // Rango razonable de $/kg vivo — descarta filas mal parseadas
+    if (precio >= 500 && precio <= 50000) precios[tipo] = Math.round(precio);
+  }
   return precios;
 }
+
+// Los registros guardados con el parser anterior tienen precios mal leídos (tomaba kilos como $/kg)
+const PARSER_LINIERS_VERSION = 2;
 
 let _cacheLiniers = null;
 let _cacheFecha   = null;
@@ -251,8 +263,8 @@ async function getPreciosLiniers() {
         // Guardar en histórico Turso
         try {
           await db.execute({
-            sql: "INSERT OR IGNORE INTO precios_historico (fecha, data_json) VALUES (?,?)",
-            args: [fechaStr, JSON.stringify({ precios: preciosCompletos, preciosRaw: precios })],
+            sql: "INSERT OR REPLACE INTO precios_historico (fecha, data_json) VALUES (?,?)",
+            args: [fechaStr, JSON.stringify({ precios: preciosCompletos, preciosRaw: precios, parser: PARSER_LINIERS_VERSION })],
           });
         } catch(e) { /* no bloquear si falla */ }
         console.log(`✅ MAG scrapeado OK: ${fechaStr}`);
@@ -723,7 +735,7 @@ app.post("/api/campos/clima", async (req, res) => {
 app.get("/api/stock/:userId", async (req, res) => {
   try {
     const r = await db.execute({ sql: "SELECT * FROM stock WHERE usuario_id = ? ORDER BY guardado_en DESC", args: [req.params.userId] });
-    const stock = r.rows.map(s => ({ id: Number(s.id), nombre: s.nombre, guardado_en: s.guardado_en, ...JSON.parse(s.data_json) }));
+    const stock = r.rows.map(s => ({ id: Number(s.id), nombre: s.nombre, guardado_en: s.guardado_en, ...JSON.parse(s.data_json), lote_id: s.lote_id ? Number(s.lote_id) : null }));
     res.json({ stock });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -867,7 +879,7 @@ app.get("/api/stock/:userId/lote/:loteId", async (req, res) => {
       ? { sql: "SELECT * FROM stock WHERE usuario_id=? AND lote_id IS NULL ORDER BY guardado_en DESC", args: [userId] }
       : { sql: "SELECT * FROM stock WHERE usuario_id=? AND lote_id=? ORDER BY guardado_en DESC", args: [userId, loteId] };
     const r = await db.execute(sql);
-    const stock = r.rows.map(s => ({ id: Number(s.id), nombre: s.nombre, lote_id: s.lote_id ? Number(s.lote_id) : null, guardado_en: s.guardado_en, ...JSON.parse(s.data_json) }));
+    const stock = r.rows.map(s => ({ id: Number(s.id), nombre: s.nombre, guardado_en: s.guardado_en, ...JSON.parse(s.data_json), lote_id: s.lote_id ? Number(s.lote_id) : null }));
     res.json({ stock });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -875,9 +887,15 @@ app.get("/api/stock/:userId/lote/:loteId", async (req, res) => {
 // ── LINIERS HISTÓRICO ──────────────────────────────────────────────────────────
 app.get("/api/liniers/historico", async (req, res) => {
   try {
-    // Devolver los últimos 30 registros guardados
-    const r = await db.execute("SELECT fecha, data_json FROM precios_historico ORDER BY fecha DESC LIMIT 30");
-    const historico = r.rows.map(row => ({ fecha: row.fecha, ...JSON.parse(row.data_json) }));
+    // Devolver los últimos 30 registros guardados.
+    // fecha es "DD/MM/YYYY": se ordena en JS porque como texto no queda cronológico.
+    const r = await db.execute("SELECT fecha, data_json FROM precios_historico");
+    const clave = (f) => f.split("/").reverse().join("");
+    const historico = r.rows
+      .map(row => ({ fecha: row.fecha, ...JSON.parse(row.data_json) }))
+      .filter(h => h.parser >= PARSER_LINIERS_VERSION)
+      .sort((a, b) => clave(b.fecha).localeCompare(clave(a.fecha)))
+      .slice(0, 30);
     res.json({ historico });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -913,6 +931,36 @@ app.get("/api/satelital", async (req, res) => {
   }
 });
 
+// wttr.in → mismo formato "daily" que Open-Meteo (solo trae 3 días)
+// Códigos WWO de wttr → códigos WMO aproximados
+function wwoAWmo(code) {
+  const c = Number(code);
+  if (c === 113) return 0;
+  if (c === 116) return 2;
+  if (c === 119 || c === 122) return 3;
+  if ([143, 248, 260].includes(c)) return 45;
+  if ([263, 266, 281, 284, 293, 296, 353].includes(c)) return 51;
+  if ([299, 302, 305, 308, 356, 359].includes(c)) return 63;
+  if ([200, 386, 389, 392, 395].includes(c)) return 95;
+  if (c >= 179 && c <= 377) return 71;
+  return 3;
+}
+
+function wttrADaily(wttr) {
+  const dias = wttr?.weather || [];
+  return {
+    fuente: "wttr.in",
+    daily: {
+      time:               dias.map(d => d.date),
+      temperature_2m_max: dias.map(d => Number(d.maxtempC)),
+      temperature_2m_min: dias.map(d => Number(d.mintempC)),
+      precipitation_sum:  dias.map(d => (d.hourly || []).reduce((s, h) => s + Number(h.precipMM || 0), 0)),
+      weathercode:        dias.map(d => wwoAWmo(d.hourly?.[4]?.weatherCode ?? d.hourly?.[0]?.weatherCode)),
+      windspeed_10m_max:  dias.map(d => Math.max(0, ...(d.hourly || []).map(h => Number(h.windspeedKmph || 0)))),
+    },
+  };
+}
+
 // ── CLIMA CAMPO (endpoint público con lat/lon) ─────────────────────────────────
 app.get("/api/clima", async (req, res) => {
   try {
@@ -926,7 +974,7 @@ app.get("/api/clima", async (req, res) => {
     try {
       const { lat, lon } = req.query;
       const r2 = await axios.get(`https://wttr.in/${lat},${lon}?format=j1`, { timeout: 8000 });
-      res.json({ wttr: r2.data });
+      res.json(wttrADaily(r2.data));
     } catch(e2) {
       res.status(500).json({ error: "No se pudo obtener el clima" });
     }

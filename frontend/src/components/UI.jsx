@@ -1,35 +1,132 @@
 import React from "react";
-import { formatPesos } from "../utils/helpers.js";
+import { Sprout, Check, AlertTriangle } from "lucide-react";
+
+// ── LOGO ──────────────────────────────────────────────────────────────────────
+export function Logo({ size = 34, conTexto = true, sub = false }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{
+        width: size, height: size, borderRadius: size * 0.28, background: "var(--verde)",
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        boxShadow: "0 1px 3px rgba(22,163,74,0.35)",
+      }}>
+        <Sprout size={size * 0.58} color="#fff" strokeWidth={2.2} />
+      </div>
+      {conTexto && (
+        <div>
+          <div style={{ fontSize: size * 0.5, fontWeight: 800, color: "var(--texto)", lineHeight: 1, letterSpacing: "-0.03em" }}>
+            Ganader<span style={{ color: "var(--verde)" }}>IA</span>
+          </div>
+          {sub && (
+            <div style={{ fontSize: 10, color: "var(--sub2)", letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, marginTop: 3 }}>
+              Gestión ganadera
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── NOTIFICACIÓN ─────────────────────────────────────────────────────────────
 export function Notif({ notif }) {
   if (!notif) return null;
+  const error = notif.tipo === "error";
+  const Icono = error ? AlertTriangle : Check;
+  return (
+    <div role="status" style={{
+      position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
+      width: "max-content", maxWidth: "calc(100vw - 32px)",
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "12px 18px", borderRadius: 12, zIndex: 9999,
+      background: error ? "#b91c1c" : "#14532d",
+      color: "#fff", fontSize: 14, fontWeight: 600,
+      boxShadow: "0 8px 24px rgba(15,23,42,0.25)",
+      animation: "fadeIn 0.25s ease",
+    }}>
+      <Icono size={18} style={{ flexShrink: 0 }} />
+      <span>{notif.msg}</span>
+    </div>
+  );
+}
+
+// ── ENCABEZADO DE PÁGINA ─────────────────────────────────────────────────────
+export function PageHeader({ icon: Icono, titulo, sub, accion }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        {Icono && <IconTile icon={Icono} />}
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: "clamp(20px,4vw,24px)", fontWeight: 800, color: "var(--texto)" }}>{titulo}</h1>
+          {sub && <p style={{ fontSize: 13, color: "var(--sub)", marginTop: 2 }}>{sub}</p>}
+        </div>
+      </div>
+      {accion}
+    </div>
+  );
+}
+
+// ── ÍCONO EN RECUADRO ────────────────────────────────────────────────────────
+export function IconTile({ icon: Icono, color = "var(--verde)", bg = "var(--verde-light)", size = 40 }) {
   return (
     <div style={{
-      position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)",
-      padding: "12px 28px", borderRadius: 8, zIndex: 9999,
-      background: notif.tipo === "error" ? "#dc2626" : "#16a34a",
-      color: "#fff", fontFamily: "var(--mono)", fontSize: 14, fontWeight: 600,
-      boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-      animation: "fadeIn 0.3s ease", whiteSpace: "nowrap",
+      width: size, height: size, borderRadius: size * 0.3, background: bg, color,
+      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
     }}>
-      {notif.msg}
+      <Icono size={size * 0.5} strokeWidth={2} />
+    </div>
+  );
+}
+
+// ── ESTADO VACÍO ──────────────────────────────────────────────────────────────
+export function EmptyState({ icon, titulo, texto, accion }) {
+  return (
+    <Card style={{ textAlign: "center", padding: "40px 24px" }}>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        <IconTile icon={icon} size={52} />
+      </div>
+      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{titulo}</h2>
+      {texto && <p style={{ color: "var(--sub)", fontSize: 14, maxWidth: 380, margin: "0 auto" }}>{texto}</p>}
+      {accion && <div style={{ marginTop: 20 }}>{accion}</div>}
+    </Card>
+  );
+}
+
+// ── AVISO ─────────────────────────────────────────────────────────────────────
+const AVISO_COLORES = {
+  info:  { bg: "#f0f9ff", border: "#bae6fd", color: "#075985" },
+  ok:    { bg: "var(--verde-light)", border: "var(--verde-border)", color: "var(--verde-txt)" },
+  warn:  { bg: "#fffbeb", border: "#fde68a", color: "#92400e" },
+  error: { bg: "#fef2f2", border: "#fecaca", color: "#b91c1c" },
+  violeta: { bg: "#faf5ff", border: "#e9d5ff", color: "#6b21a8" },
+};
+export function Aviso({ tipo = "info", icon: Icono, children, style = {} }) {
+  const c = AVISO_COLORES[tipo];
+  return (
+    <div style={{
+      display: "flex", gap: 10, alignItems: "flex-start",
+      padding: "12px 14px", borderRadius: "var(--radius-sm)",
+      background: c.bg, border: `1px solid ${c.border}`, color: c.color,
+      fontSize: 14, lineHeight: 1.5, ...style,
+    }}>
+      {Icono && <Icono size={18} style={{ flexShrink: 0, marginTop: 1 }} />}
+      <div style={{ minWidth: 0, flex: 1 }}>{children}</div>
     </div>
   );
 }
 
 // ── CARD ──────────────────────────────────────────────────────────────────────
-export function Card({ children, style = {} }) {
+export function Card({ children, style = {}, ...props }) {
   return (
     <div style={{
       background: "var(--bg-card)",
       border: "1px solid var(--borde)",
       borderRadius: "var(--radius)",
-      padding: "24px",
-      marginBottom: 16,
+      padding: "20px",
+      marginBottom: 14,
       boxShadow: "var(--shadow)",
       ...style,
-    }}>
+    }} {...props}>
       {children}
     </div>
   );
@@ -39,22 +136,27 @@ export function Card({ children, style = {} }) {
 export function ChipGrid({ options, value, onChange }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
-      {options.map((opt) => (
-        <button
-          key={opt.id}
-          onClick={() => onChange(opt.id)}
-          style={{
-            padding: "8px 16px", borderRadius: 8, fontSize: 14,
-            fontFamily: "var(--mono)", cursor: "pointer", fontWeight: value === opt.id ? 600 : 400,
-            border: value === opt.id ? "2px solid var(--verde)" : "1.5px solid #cbd5e1",
-            background: value === opt.id ? "var(--verde-dim)" : "#fff",
-            color: value === opt.id ? "#166534" : "var(--sub)",
-            transition: "all 0.15s",
-          }}
-        >
-          {opt.icon && `${opt.icon} `}{opt.label}
-        </button>
-      ))}
+      {options.map((opt) => {
+        const activo = value === opt.id;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onChange(opt.id)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "8px 14px", borderRadius: 999, fontSize: 14,
+              fontWeight: activo ? 600 : 500,
+              border: activo ? "1px solid var(--verde)" : "1px solid var(--borde-fuerte)",
+              background: activo ? "var(--verde-light)" : "#fff",
+              color: activo ? "var(--verde-txt)" : "var(--texto2)",
+            }}
+          >
+            {activo && <Check size={14} strokeWidth={3} />}
+            {opt.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -62,11 +164,7 @@ export function ChipGrid({ options, value, onChange }) {
 // ── LABEL ─────────────────────────────────────────────────────────────────────
 export function Label({ children }) {
   return (
-    <span style={{
-      display: "block", fontSize: 12, color: "var(--sub)", fontWeight: 600,
-      fontFamily: "var(--mono)", letterSpacing: "0.05em",
-      textTransform: "uppercase", marginBottom: 8,
-    }}>
+    <span style={{ display: "block", fontSize: 13, color: "var(--texto2)", fontWeight: 600, marginBottom: 8 }}>
       {children}
     </span>
   );
@@ -78,7 +176,7 @@ export function Input({ style = {}, ...props }) {
     <input
       style={{
         width: "100%", padding: "11px 14px", fontSize: 15,
-        marginBottom: 18, borderRadius: 8, display: "block",
+        marginBottom: 18, display: "block",
         ...style,
       }}
       {...props}
@@ -87,74 +185,51 @@ export function Input({ style = {}, ...props }) {
 }
 
 // ── BOTONES ───────────────────────────────────────────────────────────────────
-export function BtnPrimary({ children, style = {}, ...props }) {
+function Btn({ variante, icon: Icono, children, className = "", tam, ...props }) {
+  const clases = ["btn", `btn-${variante}`, tam && `btn-${tam}`, className].filter(Boolean).join(" ");
   return (
-    <button
-      style={{
-        padding: "11px 24px", borderRadius: 8, fontSize: 15, fontWeight: 600,
-        border: "none", background: "#16a34a", color: "#fff",
-        cursor: "pointer", letterSpacing: "0.01em",
-        boxShadow: "0 1px 3px rgba(22,163,74,0.3)",
-        transition: "all 0.15s",
-        ...style,
-      }}
-      onMouseEnter={e => e.currentTarget.style.background = "#15803d"}
-      onMouseLeave={e => e.currentTarget.style.background = "#16a34a"}
-      {...props}
-    >
+    <button type="button" className={clases} {...props}>
+      {Icono && <Icono size={tam === "sm" ? 15 : 18} strokeWidth={2.2} />}
       {children}
     </button>
   );
 }
 
-export function BtnSecondary({ children, style = {}, ...props }) {
-  return (
-    <button
-      style={{
-        padding: "11px 24px", borderRadius: 8, fontSize: 15, fontWeight: 500,
-        border: "1.5px solid #cbd5e1", background: "#fff", color: "var(--sub)",
-        cursor: "pointer", transition: "all 0.15s",
-        ...style,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = "#94a3b8"; e.currentTarget.style.background = "#f8fafc"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = "#cbd5e1"; e.currentTarget.style.background = "#fff"; }}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
+export function BtnPrimary(props)   { return <Btn variante="primary" {...props} />; }
+export function BtnSecondary(props) { return <Btn variante="secondary" {...props} />; }
+export function BtnSoft(props)      { return <Btn variante="soft" {...props} />; }
+export function BtnDanger(props)    { return <Btn variante="danger" {...props} />; }
+export function BtnGhost(props)     { return <Btn variante="ghost" {...props} />; }
 
 // ── SECTION TITLE ─────────────────────────────────────────────────────────────
-export function SectionTitle({ children }) {
+export function SectionTitle({ icon: Icono, children, accion }) {
   return (
-    <div style={{
-      fontSize: 11, fontWeight: 700, color: "#16a34a",
-      letterSpacing: "0.12em", textTransform: "uppercase",
-      marginBottom: 16, paddingBottom: 10,
-      borderBottom: "2px solid #dcfce7",
-    }}>
-      {children}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 700, color: "var(--texto)" }}>
+        {Icono && <Icono size={18} color="var(--verde)" strokeWidth={2.2} />}
+        {children}
+      </div>
+      {accion}
     </div>
   );
 }
 
-// ── METRICA CARD ──────────────────────────────────────────────────────────────
-export function MetricaCard({ titulo, valor, sub, color = "#16a34a" }) {
+// ── MÉTRICA ───────────────────────────────────────────────────────────────────
+export function MetricaCard({ titulo, valor, sub, color = "var(--texto)", icon: Icono }) {
   return (
     <div style={{
       background: "#fff", border: "1px solid var(--borde)",
-      borderRadius: 10, padding: "16px 14px", textAlign: "center",
-      boxShadow: "var(--shadow)",
-      borderTop: `3px solid ${color}`,
+      borderRadius: "var(--radius)", padding: "14px 16px",
+      boxShadow: "var(--shadow)", minWidth: 0,
     }}>
-      <div style={{ fontSize: 11, color: "var(--sub)", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--sub)", fontWeight: 600, marginBottom: 6 }}>
+        {Icono && <Icono size={14} />}
         {titulo}
       </div>
-      <div style={{ fontSize: 22, fontWeight: 800, color, marginBottom: 4 }}>
+      <div className="num" style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1.2, overflowWrap: "anywhere" }}>
         {valor}
       </div>
-      {sub && <div style={{ fontSize: 11, color: "var(--sub2)" }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 12, color: "var(--sub)", marginTop: 4 }}>{sub}</div>}
     </div>
   );
 }
@@ -166,13 +241,10 @@ export function ProyBar({ label, kg, maxKg, color }) {
     <div style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
         <span style={{ fontSize: 13, color: "var(--sub)", fontWeight: 500 }}>{label}</span>
-        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--texto)" }}>{kg} kg</span>
+        <span className="num" style={{ fontSize: 14, fontWeight: 700, color: "var(--texto)" }}>{kg} kg</span>
       </div>
-      <div style={{ height: 10, background: "#e2e8f0", borderRadius: 5, overflow: "hidden" }}>
-        <div style={{
-          height: "100%", width: `${pct}%`, background: color,
-          borderRadius: 5, transition: "width 0.6s ease",
-        }} />
+      <div style={{ height: 8, background: "var(--bg2)", borderRadius: 4, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 4, transition: "width 0.6s ease" }} />
       </div>
     </div>
   );
@@ -182,47 +254,48 @@ export function ProyBar({ label, kg, maxKg, color }) {
 export function Stepper({ paso }) {
   const pasos = [{ n: 1, label: "Foto" }, { n: 2, label: "Datos" }, { n: 3, label: "Resultado" }];
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
-      {pasos.map((p, i) => (
-        <React.Fragment key={p.n}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: "50%",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 14, fontWeight: 700, margin: "0 auto 4px",
-              background: paso > p.n ? "#16a34a" : paso === p.n ? "#16a34a" : "#e2e8f0",
-              color: paso >= p.n ? "#fff" : "#94a3b8",
-              border: paso === p.n ? "3px solid #bbf7d0" : "none",
-              boxShadow: paso === p.n ? "0 0 0 2px #16a34a" : "none",
-            }}>
-              {paso > p.n ? "✓" : p.n}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+      {pasos.map((p, i) => {
+        const hecho = paso > p.n, actual = paso === p.n;
+        return (
+          <React.Fragment key={p.n}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 13, fontWeight: 700,
+                background: hecho || actual ? "var(--verde)" : "#e5e7eb",
+                color: hecho || actual ? "#fff" : "var(--sub)",
+                boxShadow: actual ? "0 0 0 4px var(--verde-dim)" : "none",
+              }}>
+                {hecho ? <Check size={15} strokeWidth={3} /> : p.n}
+              </div>
+              <span style={{ fontSize: 13, color: actual ? "var(--texto)" : "var(--sub)", fontWeight: actual ? 700 : 500 }}>
+                {p.label}
+              </span>
             </div>
-            <div style={{ fontSize: 11, color: paso >= p.n ? "#16a34a" : "var(--sub2)", fontWeight: paso === p.n ? 700 : 400 }}>
-              {p.label}
-            </div>
-          </div>
-          {i < pasos.length - 1 && (
-            <div style={{ flex: 1, height: 2, background: paso > p.n ? "#16a34a" : "#e2e8f0", margin: "0 8px 20px" }} />
-          )}
-        </React.Fragment>
-      ))}
+            {i < pasos.length - 1 && (
+              <div style={{ flex: 1, maxWidth: 60, minWidth: 16, height: 2, background: hecho ? "var(--verde)" : "#e5e7eb", margin: "0 10px" }} />
+            )}
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }
 
 // ── SPINNER ───────────────────────────────────────────────────────────────────
-export function Spinner() {
+export function Spinner({ size = 40 }) {
   return (
-    <div style={{
-      width: 44, height: 44, borderRadius: "50%", margin: "0 auto",
-      border: "4px solid #e2e8f0",
-      borderTopColor: "#16a34a",
-      animation: "spin 0.8s linear infinite",
+    <div className="spin" style={{
+      width: size, height: size, borderRadius: "50%", margin: "0 auto",
+      border: `${Math.max(3, size / 11)}px solid #e5e7eb`,
+      borderTopColor: "var(--verde)",
     }} />
   );
 }
 
 // ── RESUMEN CARD (alias de MetricaCard para Stock) ────────────────────────────
-export function ResumenCard({ titulo, valor, sub, color }) {
-  return <MetricaCard titulo={titulo} valor={valor} sub={sub} color={color} />;
+export function ResumenCard(props) {
+  return <MetricaCard {...props} />;
 }

@@ -1,19 +1,21 @@
 import { useState, useEffect } from "react";
-import { Card, SectionTitle, Spinner } from "../components/UI.jsx";
+import { Landmark, RefreshCw, LineChart as LineChartIcon, Table2, AlertTriangle } from "lucide-react";
+import { Card, SectionTitle, Spinner, PageHeader, BtnSecondary, Aviso } from "../components/UI.jsx";
 import { formatPesos } from "../utils/helpers.js";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
 
 const API = import.meta.env.VITE_API_URL || "";
 
 const CATEGORIAS = [
-  { id: "novillo",    label: "Novillo",    color: "#2563eb", emoji: "🐂" },
-  { id: "novillito",  label: "Novillito",  color: "#7c3aed", emoji: "🐃" },
-  { id: "ternero",    label: "Ternero",    color: "#16a34a", emoji: "🐄" },
-  { id: "ternera",    label: "Ternera",    color: "#059669", emoji: "🐄" },
-  { id: "vaquillona", label: "Vaquillona", color: "#d97706", emoji: "🐄" },
-  { id: "vaca",       label: "Vaca",       color: "#dc2626", emoji: "🐄" },
-  { id: "toro",       label: "Toro",       color: "#0891b2", emoji: "🐂" },
+  { id: "novillo",    label: "Novillo" },
+  { id: "novillito",  label: "Novillito" },
+  { id: "ternero",    label: "Ternero" },
+  { id: "ternera",    label: "Ternera" },
+  { id: "vaquillona", label: "Vaquillona" },
+  { id: "vaca",       label: "Vaca" },
+  { id: "toro",       label: "Toro" },
 ];
+const COLOR = "#16a34a";
 
 function parseFecha(str) {
   // "DD/MM/YYYY" → Date
@@ -60,50 +62,49 @@ export default function Liniers() {
   const precioHoy = hoy?.precios?.[catActiva];
   const cat = CATEGORIAS.find(c => c.id === catActiva);
 
+  // Categorías que vienen del remate real; el resto se estiman a partir del novillo
+  const esReal = (id) => !!hoy?.preciosRaw?.[id];
+
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "28px 16px" }}>
+    <div className="page">
+      <PageHeader
+        icon={Landmark}
+        titulo="Mercado de Liniers"
+        sub={hoy ? `Remate del ${hoy.fecha}` : "Cargando precios..."}
+        accion={<BtnSecondary icon={RefreshCw} tam="sm" onClick={cargar} disabled={loading}>Actualizar</BtnSecondary>}
+      />
 
-      {/* Header */}
-      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: "clamp(20px,4vw,26px)", fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>
-            🏛️ Mercado de Liniers
-          </h2>
-          <p style={{ fontSize: 13, color: "#64748b" }}>
-            {hoy ? `Precios al ${hoy.fecha} · ${hoy.fuente}` : "Cargando precios..."}
-          </p>
-        </div>
-        <button onClick={cargar} style={{
-          padding: "8px 16px", borderRadius: 8, background: "#f0fdf4",
-          border: "1.5px solid #bbf7d0", color: "#16a34a", fontSize: 13,
-          fontWeight: 600, cursor: "pointer",
-        }}>↻ Actualizar</button>
-      </div>
+      {loading && !hoy && <Card style={{ textAlign: "center", padding: 48 }}><Spinner /><p style={{ marginTop: 16, color: "var(--sub)" }}>Consultando precios...</p></Card>}
+      {error && <Aviso tipo="error" icon={AlertTriangle} style={{ marginBottom: 14 }}>{error}</Aviso>}
 
-      {loading && <Card style={{ textAlign: "center", padding: 48 }}><Spinner /><p style={{ marginTop: 16, color: "#64748b" }}>Consultando precios...</p></Card>}
-      {error && <Card><p style={{ color: "#dc2626" }}>❌ {error}</p></Card>}
-
-      {hoy && !loading && (
+      {hoy && (
         <>
+          {!hoy.preciosRaw || Object.keys(hoy.preciosRaw).length === 0 ? (
+            <Aviso tipo="warn" icon={AlertTriangle} style={{ marginBottom: 14 }}>
+              No se pudo leer el remate de hoy. Se muestran precios de referencia.
+            </Aviso>
+          ) : null}
+
           {/* Precios del día — grid de tarjetas */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 10, marginBottom: 16 }}>
             {CATEGORIAS.map(c => {
               const precio = hoy.precios?.[c.id];
               const activa = catActiva === c.id;
               return (
-                <button key={c.id} onClick={() => setCatActiva(c.id)} style={{
-                  padding: "14px 10px", borderRadius: 12, textAlign: "center",
-                  border: activa ? `2px solid ${c.color}` : "1.5px solid #e2e8f0",
-                  background: activa ? `${c.color}12` : "#fff",
-                  cursor: "pointer", transition: "all 0.15s",
-                  boxShadow: activa ? `0 2px 8px ${c.color}30` : "0 1px 3px rgba(0,0,0,0.05)",
+                <button key={c.id} onClick={() => setCatActiva(c.id)} aria-pressed={activa} style={{
+                  padding: "14px 14px", borderRadius: "var(--radius)", textAlign: "left",
+                  border: activa ? `1.5px solid ${COLOR}` : "1px solid var(--borde)",
+                  background: activa ? "var(--verde-light)" : "#fff",
+                  boxShadow: activa ? "0 0 0 3px var(--verde-dim)" : "var(--shadow)",
                 }}>
-                  <div style={{ fontSize: 22, marginBottom: 4 }}>{c.emoji}</div>
-                  <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>{c.label}</div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: precio ? c.color : "#94a3b8" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, color: "var(--texto2)", fontWeight: 600 }}>{c.label}</span>
+                    {!esReal(c.id) && <span title="Estimado a partir del novillo" style={{ fontSize: 10, fontWeight: 700, color: "var(--sub)", background: "var(--bg2)", padding: "1px 6px", borderRadius: 999 }}>EST.</span>}
+                  </div>
+                  <div className="num" style={{ fontSize: 20, fontWeight: 800, color: precio ? "var(--texto)" : "var(--sub2)" }}>
                     {precio ? `$${precio.toLocaleString("es-AR")}` : "—"}
                   </div>
-                  <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>/kg vivo</div>
+                  <div style={{ fontSize: 12, color: "var(--sub)" }}>por kg vivo</div>
                 </button>
               );
             })}
@@ -111,105 +112,85 @@ export default function Liniers() {
 
           {/* Detalle categoría seleccionada */}
           {precioHoy && (
-            <div style={{
-              background: `${cat.color}08`, border: `1.5px solid ${cat.color}30`,
-              borderRadius: 12, padding: "16px 20px", marginBottom: 24,
-              display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center",
-            }}>
-              <div>
-                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-                  {cat.emoji} {cat.label} — Precio hoy
-                </div>
-                <div style={{ fontSize: 32, fontWeight: 900, color: cat.color }}>
-                  ${precioHoy.toLocaleString("es-AR")}<span style={{ fontSize: 16, fontWeight: 500, color: "#64748b" }}>/kg</span>
-                </div>
+            <Card>
+              <div style={{ fontSize: 13, color: "var(--sub)", fontWeight: 600, marginBottom: 2 }}>{cat.label} · precio hoy</div>
+              <div className="num" style={{ fontSize: 30, fontWeight: 800, color: "var(--verde-osc)", marginBottom: 14 }}>
+                ${precioHoy.toLocaleString("es-AR")}<span style={{ fontSize: 15, fontWeight: 500, color: "var(--sub)" }}> /kg</span>
               </div>
-              <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                 {[300, 400, 500].map(kg => (
-                  <div key={kg} style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{kg} kg</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b" }}>{formatPesos(precioHoy * kg)}</div>
+                  <div key={kg} style={{ background: "var(--bg2)", borderRadius: 10, padding: "10px 8px", textAlign: "center", minWidth: 0 }}>
+                    <div className="num" style={{ fontSize: 12, color: "var(--sub)", fontWeight: 600 }}>{kg} kg</div>
+                    <div className="num" style={{ fontSize: "clamp(13px,3.6vw,15px)", fontWeight: 700, color: "var(--texto)", whiteSpace: "nowrap" }}>{formatPesos(precioHoy * kg)}</div>
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
           )}
 
           {/* Gráfico histórico */}
-          {chartData.length > 1 ? (
-            <Card>
-              <SectionTitle>📈 EVOLUCIÓN HISTÓRICA DE PRECIOS</SectionTitle>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-                {CATEGORIAS.map(c => (
-                  <button key={c.id} onClick={() => setCatActiva(c.id)} style={{
-                    padding: "5px 12px", borderRadius: 20, fontSize: 12, cursor: "pointer",
-                    border: catActiva === c.id ? `1.5px solid ${c.color}` : "1.5px solid #e2e8f0",
-                    background: catActiva === c.id ? `${c.color}15` : "#f8fafc",
-                    color: catActiva === c.id ? c.color : "#64748b",
-                    fontWeight: catActiva === c.id ? 700 : 400,
-                  }}>{c.label}</button>
-                ))}
-              </div>
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: "#64748b" }} />
-                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
-                  <Tooltip
-                    contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13 }}
-                    formatter={(v, name) => [`$${(v||0).toLocaleString("es-AR")}/kg`, CATEGORIAS.find(c=>c.id===name)?.label || name]}
-                  />
-                  <Line dataKey={catActiva} stroke={cat.color} strokeWidth={2.5} dot={{ r: 4, fill: cat.color }} activeDot={{ r: 6 }} connectNulls />
-                </LineChart>
-              </ResponsiveContainer>
-              <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 8 }}>
-                Se registra automáticamente cada vez que se consultan precios · Fuente: Mercado Agroganadero S.A.
+          <Card>
+            <SectionTitle icon={LineChartIcon}>Evolución de {cat.label.toLowerCase()}</SectionTitle>
+            {chartData.length > 1 ? (
+              <>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={{ stroke: "#e5e7eb" }} />
+                    <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} width={60} domain={["auto", "auto"]} tickFormatter={v => `$${Math.round(v).toLocaleString("es-AR")}`} />
+                    <Tooltip
+                      contentStyle={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13 }}
+                      formatter={(v, name) => [`$${(v || 0).toLocaleString("es-AR")}/kg`, CATEGORIAS.find(c => c.id === name)?.label || name]}
+                    />
+                    <Line dataKey={catActiva} stroke={COLOR} strokeWidth={2.5} dot={{ r: 3, fill: COLOR }} activeDot={{ r: 6 }} connectNulls />
+                  </LineChart>
+                </ResponsiveContainer>
+                <p style={{ fontSize: 12, color: "var(--sub2)", marginTop: 8 }}>
+                  Se guarda un registro por día cada vez que se consultan los precios.
+                </p>
+              </>
+            ) : (
+              <p style={{ fontSize: 14, color: "var(--sub)", textAlign: "center", padding: "16px 0" }}>
+                El gráfico aparece cuando haya precios de al menos dos días distintos.
               </p>
-            </Card>
-          ) : (
-            <Card>
-              <div style={{ textAlign: "center", padding: "24px 0", color: "#64748b" }}>
-                <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
-                <p style={{ fontSize: 14 }}>El gráfico histórico aparecerá a medida que se acumulen datos de días distintos.</p>
-              </div>
-            </Card>
-          )}
+            )}
+          </Card>
 
           {/* Tabla completa */}
-          <Card style={{ marginTop: 0 }}>
-            <SectionTitle>📋 TABLA DE PRECIOS DEL DÍA</SectionTitle>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <Card>
+            <SectionTitle icon={Table2}>Precios del día</SectionTitle>
+            <div style={{ overflowX: "auto", margin: "0 -4px" }}>
+              <table className="num" style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                 <thead>
-                  <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
-                    {["Categoría", "$/kg vivo", "500 kg", "400 kg", "300 kg"].map(h => (
-                      <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
+                  <tr style={{ borderBottom: "1px solid var(--borde)" }}>
+                    {["Categoría", "$/kg", "300 kg", "400 kg"].map((h, i) => (
+                      <th key={h} className={i === 3 ? "ocultar-mobile" : undefined} style={{ padding: "8px 6px", textAlign: i === 0 ? "left" : "right", fontSize: 12, color: "var(--sub)", fontWeight: 600, whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {CATEGORIAS.map((c, i) => {
+                  {CATEGORIAS.map(c => {
                     const precio = hoy.precios?.[c.id];
+                    const activa = catActiva === c.id;
                     return (
-                      <tr key={c.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#f8fafc" }}
-                        onClick={() => setCatActiva(c.id)}>
-                        <td style={{ padding: "12px 14px", fontWeight: 600, color: "#1e293b" }}>
-                          {c.emoji} {c.label}
+                      <tr key={c.id} onClick={() => setCatActiva(c.id)} style={{ borderBottom: "1px solid var(--bg2)", cursor: "pointer", background: activa ? "var(--verde-light)" : "transparent" }}>
+                        <td style={{ padding: "11px 6px", fontWeight: 600, color: "var(--texto)", whiteSpace: "nowrap" }}>
+                          {c.label}{!esReal(c.id) && <span style={{ color: "var(--sub2)", fontWeight: 500 }}> *</span>}
                         </td>
-                        <td style={{ padding: "12px 14px", fontWeight: 800, color: precio ? c.color : "#94a3b8", fontSize: 16 }}>
+                        <td style={{ padding: "11px 6px", fontWeight: 700, color: "var(--verde-osc)", textAlign: "right", whiteSpace: "nowrap" }}>
                           {precio ? `$${precio.toLocaleString("es-AR")}` : "—"}
                         </td>
-                        <td style={{ padding: "12px 14px", color: "#374151" }}>{precio ? formatPesos(precio * 500) : "—"}</td>
-                        <td style={{ padding: "12px 14px", color: "#374151" }}>{precio ? formatPesos(precio * 400) : "—"}</td>
-                        <td style={{ padding: "12px 14px", color: "#374151" }}>{precio ? formatPesos(precio * 300) : "—"}</td>
+                        <td style={{ padding: "11px 6px", color: "var(--texto2)", textAlign: "right", whiteSpace: "nowrap" }}>{precio ? formatPesos(precio * 300) : "—"}</td>
+                        <td className="ocultar-mobile" style={{ padding: "11px 6px", color: "var(--texto2)", textAlign: "right", whiteSpace: "nowrap" }}>{precio ? formatPesos(precio * 400) : "—"}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 12 }}>
-              * Precios orientativos "muy buena clase" · Verificar en mercadoagroganadero.com.ar
+            <p style={{ fontSize: 12, color: "var(--sub2)", marginTop: 12, lineHeight: 1.5 }}>
+              Promedio ponderado del remate (importe ÷ kilos) · Fuente: Mercado Agroganadero S.A.
+              {CATEGORIAS.some(c => !esReal(c.id)) && <><br />* Sin remate de esa categoría: estimado a partir del novillo.</>}
             </p>
           </Card>
         </>

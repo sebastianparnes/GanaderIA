@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, SectionTitle, BtnPrimary, BtnSecondary, Label, Input, ChipGrid } from "../components/UI.jsx";
-import { TIPOS_PASTURA } from "../utils/constants.js";
+import { Layers, Plus, Pencil, Trash2, ChevronDown, Leaf, Ruler, Wallet, Scale, MapPin, ArrowRightLeft, Check } from "lucide-react";
+import { Card, SectionTitle, BtnPrimary, BtnSecondary, Label, Input, ChipGrid, PageHeader, EmptyState } from "../components/UI.jsx";
+import { TIPOS_PASTURA, TIPOS_ANIMAL } from "../utils/constants.js";
 import { formatPesos } from "../utils/helpers.js";
-import { TIPOS_ANIMAL, TIPO_EMOJI } from "../utils/constants.js";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -63,11 +63,7 @@ export default function Lotes({ campoPrincipal, user, stock, onAsignarLote }) {
   }
 
   async function asignarLote(stockId, loteId) {
-    await fetch(`${API}/api/stock/asignar-lote`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stock_id: stockId, lote_id: loteId, usuario_id: user.id }),
-    });
-    if (onAsignarLote) onAsignarLote(stockId, loteId);
+    await onAsignarLote(stockId, loteId);
     setMoviendo(null);
   }
 
@@ -79,13 +75,14 @@ export default function Lotes({ campoPrincipal, user, stock, onAsignarLote }) {
 
   if (!campoPrincipal) {
     return (
-      <div style={{ maxWidth: 680, margin: "0 auto", padding: "60px 20px", textAlign: "center" }}>
-        <div style={{ fontSize: 60, marginBottom: 16 }}>🌾</div>
-        <h2 style={{ fontSize: 22, color: "#1e293b", marginBottom: 10 }}>Configurá tu campo primero</h2>
-        <p style={{ color: "#64748b", fontSize: 15, marginBottom: 24 }}>
-          Para gestionar lotes necesitás configurar tu campo en "Mi Campo".
-        </p>
-        <BtnPrimary onClick={() => nav("/campo")}>Ir a Mi Campo →</BtnPrimary>
+      <div className="page page-narrow">
+        <PageHeader icon={Layers} titulo="Lotes" />
+        <EmptyState
+          icon={MapPin}
+          titulo="Configurá tu campo primero"
+          texto="Para organizar lotes y potreros necesitás cargar tu campo."
+          accion={<BtnPrimary icon={MapPin} onClick={() => nav("/campo")}>Ir a Mi campo</BtnPrimary>}
+        />
       </div>
     );
   }
@@ -98,51 +95,46 @@ export default function Lotes({ campoPrincipal, user, stock, onAsignarLote }) {
   const PaletaColor = ["#2563eb","#16a34a","#d97706","#7c3aed","#dc2626","#0891b2","#059669","#b45309"];
   const colorLote = (i) => PaletaColor[i % PaletaColor.length];
 
-  return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "28px 16px" }}>
+  const abrirNuevo = () => { setCreando(true); setEditando(null); setForm({ nombre: "", pastura: "", hectareas: "" }); };
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: "clamp(20px,4vw,26px)", fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>
-            🗂️ Lotes — {campoPrincipal.nombre}
-          </h2>
-          <p style={{ fontSize: 13, color: "#64748b" }}>
-            {lotes.length} lotes · {stock.length} animales en total
-          </p>
-        </div>
-        {!creando && (
-          <BtnPrimary onClick={() => { setCreando(true); setEditando(null); setForm({ nombre: "", pastura: "", hectareas: "" }); }}>
-            + Nuevo Lote
-          </BtnPrimary>
-        )}
-      </div>
+  return (
+    <div className="page">
+      <PageHeader
+        icon={Layers}
+        titulo="Lotes"
+        sub={`${campoPrincipal.nombre} · ${lotes.length} ${lotes.length === 1 ? "lote" : "lotes"} · ${stock.length} animales`}
+        accion={!creando && <BtnPrimary icon={Plus} onClick={abrirNuevo}>Nuevo lote</BtnPrimary>}
+      />
 
       {/* Formulario crear/editar */}
       {creando && (
-        <Card style={{ marginBottom: 24, border: "2px solid #bbf7d0", background: "#f0fdf4" }}>
-          <SectionTitle>{editando ? "✏️ EDITAR LOTE" : "➕ NUEVO LOTE"}</SectionTitle>
+        <Card className="fade-up" style={{ marginBottom: 18, border: "1px solid var(--verde-border)", boxShadow: "0 0 0 4px var(--verde-dim)" }}>
+          <SectionTitle icon={editando ? Pencil : Plus}>{editando ? "Editar lote" : "Nuevo lote"}</SectionTitle>
           <Label>Nombre del lote *</Label>
-          <Input placeholder="Ej: Lote Norte, Potrero 3, Recría..." value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
+          <Input placeholder="Ej: Lote Norte, Potrero 3, Recría..." value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} autoFocus />
           <Label>Pastura del lote</Label>
           <ChipGrid options={TIPOS_PASTURA} value={form.pastura} onChange={v => setForm(f => ({ ...f, pastura: v }))} />
           <Label>Superficie (hectáreas)</Label>
-          <Input type="number" min="0" step="0.1" placeholder="Ej: 45.5" value={form.hectareas} onChange={e => setForm(f => ({ ...f, hectareas: e.target.value }))} style={{ maxWidth: 200 }} />
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+          <Input type="number" inputMode="decimal" min="0" step="0.1" placeholder="Ej: 45.5" value={form.hectareas} onChange={e => setForm(f => ({ ...f, hectareas: e.target.value }))} style={{ maxWidth: 200 }} />
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
             <BtnSecondary onClick={() => { setCreando(false); setEditando(null); }}>Cancelar</BtnSecondary>
-            <BtnPrimary onClick={guardarLote}>{editando ? "Guardar cambios" : "Crear Lote"}</BtnPrimary>
+            <BtnPrimary icon={Check} onClick={guardarLote} disabled={!form.nombre.trim()}>{editando ? "Guardar cambios" : "Crear lote"}</BtnPrimary>
           </div>
         </Card>
       )}
 
       {/* Lista de lotes */}
-      {loading ? (
-        <Card style={{ textAlign: "center", padding: 40, color: "#64748b" }}>Cargando lotes...</Card>
+      {loading && lotes.length === 0 ? (
+        <Card style={{ textAlign: "center", padding: 40, color: "var(--sub)" }}>Cargando lotes...</Card>
       ) : lotes.length === 0 ? (
-        <Card style={{ textAlign: "center", padding: "40px 20px" }}>
-          <div style={{ fontSize: 44, marginBottom: 12 }}>🗂️</div>
-          <p style={{ color: "#64748b", fontSize: 15 }}>Todavía no creaste ningún lote. Creá uno para organizar tus animales.</p>
-        </Card>
+        !creando && (
+          <EmptyState
+            icon={Layers}
+            titulo="Todavía no hay lotes"
+            texto="Creá lotes o potreros para organizar tus animales y ver cuánto vale cada uno."
+            accion={<BtnPrimary icon={Plus} onClick={abrirNuevo}>Crear el primer lote</BtnPrimary>}
+          />
+        )
       ) : (
         lotes.map((lote, idx) => {
           const animales = porLote(lote.id);
@@ -152,39 +144,38 @@ export default function Lotes({ campoPrincipal, user, stock, onAsignarLote }) {
           const color = colorLote(idx);
 
           return (
-            <Card key={lote.id} style={{ marginBottom: 14, borderLeft: `4px solid ${color}` }}>
-              {/* Header lote */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setLoteSelec(isOpen ? null : lote.id)}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                    <div style={{ width: 12, height: 12, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>{lote.nombre}</span>
-                    <span style={{ fontSize: 12, color: "#64748b", background: "#f1f5f9", padding: "2px 10px", borderRadius: 20 }}>
-                      {animales.length} animales
+            <Card key={lote.id} style={{ marginBottom: 10, padding: 0, overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "16px 18px" }}>
+                <div style={{ width: 6, alignSelf: "stretch", borderRadius: 3, background: color, flexShrink: 0 }} />
+                <button onClick={() => setLoteSelec(isOpen ? null : lote.id)} aria-expanded={isOpen} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                    <span style={{ fontSize: 17, fontWeight: 700, color: "var(--texto)" }}>{lote.nombre}</span>
+                    <span className="num" style={{ fontSize: 12, fontWeight: 600, color: "var(--sub)", background: "var(--bg2)", padding: "1px 8px", borderRadius: 999 }}>
+                      {animales.length} {animales.length === 1 ? "animal" : "animales"}
                     </span>
                   </div>
-                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13, color: "#64748b" }}>
-                    {lote.pastura && <span>🌿 {TIPOS_PASTURA.find(p => p.id === lote.pastura)?.label || lote.pastura}</span>}
-                    {lote.hectareas && <span>📐 {lote.hectareas} ha</span>}
-                    {animales.length > 0 && <span>💰 {formatPesos(valorTotal)}</span>}
-                    {pesoTotal > 0 && <span>⚖️ {pesoTotal} kg en pie</span>}
+                  <div className="num" style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 13, color: "var(--sub)" }}>
+                    {lote.pastura && <Dato icon={Leaf}>{TIPOS_PASTURA.find(p => p.id === lote.pastura)?.label || lote.pastura}</Dato>}
+                    {lote.hectareas && <Dato icon={Ruler}>{lote.hectareas} ha</Dato>}
+                    {animales.length > 0 && <Dato icon={Wallet}>{formatPesos(valorTotal)}</Dato>}
+                    {pesoTotal > 0 && <Dato icon={Scale}>{pesoTotal.toLocaleString("es-AR")} kg</Dato>}
                   </div>
-                </div>
-                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                  <button onClick={() => abrirEditar(lote)} style={{ padding: "6px 12px", borderRadius: 7, border: "1.5px solid #e2e8f0", background: "#fff", color: "#374151", cursor: "pointer", fontSize: 13 }}>✏️</button>
-                  <button onClick={() => eliminarLote(lote.id)} style={{ padding: "6px 12px", borderRadius: 7, border: "1.5px solid #fecaca", background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>🗑</button>
-                  <button onClick={() => setLoteSelec(isOpen ? null : lote.id)} style={{ padding: "6px 14px", borderRadius: 7, border: "1.5px solid #e2e8f0", background: "#f8fafc", color: "#374151", cursor: "pointer", fontSize: 13 }}>
-                    {isOpen ? "▲ Cerrar" : "▼ Ver animales"}
+                </button>
+                <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                  <button onClick={() => abrirEditar(lote)} className="btn btn-ghost btn-icon" aria-label="Editar lote" title="Editar"><Pencil size={17} /></button>
+                  <button onClick={() => eliminarLote(lote.id)} className="btn btn-ghost btn-icon" aria-label="Eliminar lote" title="Eliminar" style={{ color: "var(--rojo)" }}><Trash2 size={17} /></button>
+                  <button onClick={() => setLoteSelec(isOpen ? null : lote.id)} className="btn btn-ghost btn-icon" aria-label="Ver animales">
+                    <ChevronDown size={18} style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
                   </button>
                 </div>
               </div>
 
               {/* Animales del lote */}
               {isOpen && (
-                <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #e2e8f0" }}>
+                <div className="fade-in" style={{ padding: "12px 18px 16px", borderTop: "1px solid var(--borde)", background: "#fcfcfd" }}>
                   {animales.length === 0 ? (
-                    <p style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", padding: "12px 0" }}>
-                      No hay animales en este lote. Asigná animales desde la sección de sin lote.
+                    <p style={{ color: "var(--sub)", fontSize: 14, textAlign: "center", padding: "8px 0" }}>
+                      No hay animales en este lote. Movelos desde "Sin lote asignado".
                     </p>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -202,19 +193,21 @@ export default function Lotes({ campoPrincipal, user, stock, onAsignarLote }) {
 
       {/* Animales sin lote */}
       {sinLote.length > 0 && (
-        <Card style={{ marginTop: 8, borderLeft: "4px solid #cbd5e1" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, cursor: "pointer" }}
-            onClick={() => setLoteSelec(loteSelec === "sin-lote" ? null : "sin-lote")}>
-            <div>
-              <span style={{ fontSize: 17, fontWeight: 700, color: "#475569" }}>Sin lote asignado</span>
-              <span style={{ marginLeft: 10, fontSize: 12, color: "#64748b", background: "#f1f5f9", padding: "2px 10px", borderRadius: 20 }}>
-                {sinLote.length} animales
+        <Card style={{ marginTop: 18, padding: 0, overflow: "hidden", background: "#fafafa", borderStyle: "dashed" }}>
+          <button onClick={() => setLoteSelec(loteSelec === "sin-lote" ? null : "sin-lote")} aria-expanded={loteSelec === "sin-lote"} style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%",
+            padding: "14px 18px", background: "none", border: "none", textAlign: "left",
+          }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "var(--texto2)" }}>Sin lote asignado</span>
+              <span className="num" style={{ fontSize: 12, fontWeight: 600, color: "var(--ambar)", background: "#fffbeb", padding: "1px 8px", borderRadius: 999 }}>
+                {sinLote.length}
               </span>
-            </div>
-            <span style={{ fontSize: 13, color: "#64748b" }}>{loteSelec === "sin-lote" ? "▲ Cerrar" : "▼ Ver"}</span>
-          </div>
+            </span>
+            <ChevronDown size={18} color="var(--sub)" style={{ transform: loteSelec === "sin-lote" ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+          </button>
           {loteSelec === "sin-lote" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 18px 16px" }}>
               {sinLote.map(a => (
                 <AnimalRow key={a.id} animal={a} lotes={lotes} onMover={asignarLote} colorLote={colorLote} />
               ))}
@@ -226,6 +219,10 @@ export default function Lotes({ campoPrincipal, user, stock, onAsignarLote }) {
   );
 }
 
+function Dato({ icon: Icono, children }) {
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icono size={14} />{children}</span>;
+}
+
 // ── FILA ANIMAL ───────────────────────────────────────────────────────────────
 function AnimalRow({ animal, lotes, onMover, colorLote }) {
   const [abierto, setAbierto] = useState(false);
@@ -233,49 +230,45 @@ function AnimalRow({ animal, lotes, onMover, colorLote }) {
   const proy = animal.proyecciones || {};
 
   return (
-    <div style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 16px", border: "1px solid #e2e8f0" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <span style={{ fontWeight: 700, color: "#1e293b", fontSize: 14 }}>
-            {TIPO_EMOJI[animal.animal?.tipo] || "🐄"} {animal.nombre}
-          </span>
-          <span style={{ marginLeft: 10, fontSize: 12, color: "#64748b" }}>
-            {ia.pesoEstimadoKg} kg · CC {ia.condicionCorporal}/9
-          </span>
+    <div style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", border: "1px solid var(--borde)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600, color: "var(--texto)", fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {animal.nombre}
+          </div>
+          <div className="num" style={{ fontSize: 12, color: "var(--sub)" }}>
+            {TIPOS_ANIMAL.find(t => t.id === animal.animal?.tipo)?.label} · {ia.pesoEstimadoKg} kg · {formatPesos(proy.valorHoy)}
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#16a34a" }}>{formatPesos(proy.valorHoy)}</span>
-          <button onClick={() => setAbierto(!abierto)} style={{
-            padding: "5px 12px", borderRadius: 7, border: "1.5px solid #e2e8f0",
-            background: "#fff", color: "#374151", cursor: "pointer", fontSize: 12,
-          }}>
-            {abierto ? "▲" : "Mover"}
-          </button>
-        </div>
+        <button onClick={() => setAbierto(!abierto)} className="btn btn-secondary btn-sm" style={{ flexShrink: 0 }}>
+          <ArrowRightLeft size={14} /> Mover
+        </button>
       </div>
 
       {/* Selector de lote destino */}
       {abierto && (
-        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e2e8f0" }}>
-          <p style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>Mover a:</p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {lotes.map((l, i) => (
-              <button key={l.id} onClick={() => onMover(animal.id, l.id)}
-                disabled={animal.lote_id === l.id}
-                style={{
-                  padding: "6px 14px", borderRadius: 20, fontSize: 13,
-                  border: `1.5px solid ${colorLote(i)}`,
-                  background: animal.lote_id === l.id ? `${colorLote(i)}20` : "#fff",
-                  color: colorLote(i), cursor: animal.lote_id === l.id ? "default" : "pointer",
-                  fontWeight: animal.lote_id === l.id ? 700 : 400,
+        <div className="fade-in" style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--borde)" }}>
+          <p style={{ fontSize: 12, color: "var(--sub)", marginBottom: 8, fontWeight: 600 }}>Mover a:</p>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {lotes.map((l, i) => {
+              const actual = animal.lote_id === l.id;
+              return (
+                <button key={l.id} onClick={() => onMover(animal.id, l.id)} disabled={actual} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "6px 12px", borderRadius: 999, fontSize: 13, fontWeight: 600, opacity: 1,
+                  border: `1px solid ${actual ? colorLote(i) : "var(--borde-fuerte)"}`,
+                  background: actual ? `${colorLote(i)}14` : "#fff", color: "var(--texto2)",
                 }}>
-                {l.nombre} {animal.lote_id === l.id ? "✓" : ""}
-              </button>
-            ))}
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: colorLote(i) }} />
+                  {l.nombre}
+                  {actual && <Check size={13} strokeWidth={3} />}
+                </button>
+              );
+            })}
             {animal.lote_id && (
               <button onClick={() => onMover(animal.id, null)} style={{
-                padding: "6px 14px", borderRadius: 20, fontSize: 13,
-                border: "1.5px solid #cbd5e1", background: "#fff", color: "#64748b", cursor: "pointer",
+                padding: "6px 12px", borderRadius: 999, fontSize: 13, fontWeight: 600,
+                border: "1px dashed var(--borde-fuerte)", background: "#fff", color: "var(--sub)",
               }}>
                 Sin lote
               </button>
